@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "module": "CommonJS",
+    "target": "ES2019",
+    "lib": [
+      "ES2020",
+      "DOM"
+    ],
+    "strict": true,
+    "skipLibCheck": true,
+    "rootDir": "./src"
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "examples",
+    "benchmarks",
+    "node_modules"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "fynk-vue-example",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "vue": "^3.4.0",
+    "fynk": "file:../.."
+  },
+  "scripts": {
+    "dev": "vite"
+  }
+}

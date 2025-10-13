@@ -1,0 +1,13 @@
+{
+  "name": "fynk-react-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "fynk": "file:../.."
+  }
+}
