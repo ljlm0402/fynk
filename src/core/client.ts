@@ -64,9 +64,13 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
 }
 
 export async function runQuery<T>(client: HelioClient, key: (string|number)[], request: RequestFn<T>, model?: ModelDef<any>, staleMs = 30_000) {
-  return client.scheduler.run(key.join(':'), async () => {
+  // 키를 미리 계산해서 문자열 연산 최소화
+  const cacheKey = key.join(':');
+  
+  return client.scheduler.run(cacheKey, async () => {
     const res = await request();
+    // 정규화가 필요한 경우에만 실행
     if (model) client.normalize(model as any, res as any);
     return res;
-  });
+  }, staleMs);
 }

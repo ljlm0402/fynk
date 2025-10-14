@@ -31,7 +31,9 @@ export type HelioResponse<T = any> = {
 export type RequestFn<T> = () => Promise<T>;
 
 export type Scheduler = {
-  run<T>(key: string, fn: () => Promise<T>, opts?: { priority?: 'high'|'normal'|'low' }): Promise<T>;
+  run<T>(key: string, fn: () => Promise<T>, ttl?: number): Promise<T>;
+  clearCache?: () => void;
+  getCacheSize?: () => number;
 };
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
