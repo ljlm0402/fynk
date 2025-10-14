@@ -1,0 +1,8 @@
+
+examples/
+benchmarks/
+.github/
+**/*.map
+**/*.test.*
+**/__tests__/
+node_modules/
