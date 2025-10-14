@@ -1,8 +1,8 @@
 
-import './server/api-server.js';
-// import './server/sse-server.js'; // if needed
-import { runAxios } from './clients/axiosClient.js';
-import { runFynk } from './clients/fynkClient.js';
+import './server/api-server.ts';
+// import './server/sse-server.ts'; // if needed
+import { runAxios } from './clients/axiosClient.ts';
+import { runFynk } from './clients/fynkClient.ts';
 
 (async () => {
   // small delay to ensure server up (if you spawn separately, remove this)

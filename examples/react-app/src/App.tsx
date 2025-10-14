@@ -22,6 +22,9 @@ export default function App() {
     onSuccess: (res, draft) => draft.upsert(UserModel, res)
   });
 
+  // 디버깅을 위한 로그
+  console.log('React - pending:', pending, 'data:', data, 'error:', error);
+
   if (pending) return <div>Loading…</div>;
   if (error) return <div>Error</div>;
 

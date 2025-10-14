@@ -15,6 +15,9 @@ const { data, pending, error, refetch } = useQuery<User>(client, {
   staleTime: 60000
 });
 
+// 디버깅을 위한 로그
+console.log('Vue - pending:', pending.value, 'data:', data.value, 'error:', error.value);
+
 const { mutate, pending: saving } = useMutation<{ name: string }, User>(client, {
   request: (vars) => client.post<User>('/users', { body: vars }),
   optimistic: (draft, vars) => draft.insert(UserModel, { id: -1, name: vars.name, email: '' }),

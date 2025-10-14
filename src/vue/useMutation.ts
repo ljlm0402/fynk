@@ -1,5 +1,6 @@
 
-import { shallowRef } from 'vue';
+// @ts-ignore
+import { ref } from 'vue';
 import type { HelioClient } from '../core/types';
 
 export function useMutation<TVars, TRes>(client: HelioClient, params: {
@@ -8,7 +9,7 @@ export function useMutation<TVars, TRes>(client: HelioClient, params: {
   onSuccess?: (res: TRes, draft: HelioClient['draft']) => void;
   onError?: (err: any, draft: HelioClient['draft']) => void;
 }) {
-  const pending = shallowRef(false);
+  const pending = ref(false);
   async function mutate(vars: TVars) {
     pending.value = true;
     try {

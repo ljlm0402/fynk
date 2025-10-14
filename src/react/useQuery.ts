@@ -13,7 +13,7 @@ export function useQuery<T>(client: HelioClient, params: {
   const [data, setData] = useState<T | null>(null);
   const [pending, setPending] = useState<boolean>(true);
   const [error, setError] = useState<any>(null);
-  const unsub = useRef<() => void>();
+  const unsub = useRef<() => void>(() => {});
 
   useEffect(() => {
     setPending(true); setError(null);

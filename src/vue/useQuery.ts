@@ -1,5 +1,6 @@
 
-import { shallowRef, onScopeDispose } from 'vue';
+// @ts-ignore
+import { ref, onUnmounted } from 'vue';
 import type { HelioClient, ModelDef, RequestFn } from '../core/types';
 import { runQuery } from '../core/client';
 
@@ -10,9 +11,9 @@ export function useQuery<T>(client: HelioClient, params: {
   staleTime?: number;
 }) {
   const { key, request, model, staleTime = 30_000 } = params;
-  const data = shallowRef<T | null>(null);
-  const pending = shallowRef(true);
-  const error = shallowRef<any>(null);
+  const data = ref<T | null>(null);
+  const pending = ref(true);
+  const error = ref<any>(null);
   const stop = client.watchVersion(() => { /* optional reselect */ });
 
   async function exec(force = false) {
@@ -24,7 +25,7 @@ export function useQuery<T>(client: HelioClient, params: {
     finally { pending.value = false; }
   }
   exec(false);
-  onScopeDispose(() => stop?.());
+  onUnmounted(() => stop?.());
 
   return { data, pending, error, refetch: () => exec(true) };
 }
