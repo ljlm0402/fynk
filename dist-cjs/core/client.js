@@ -60,10 +60,13 @@ function createClient(opts) {
     };
 }
 async function runQuery(client, key, request, model, staleMs = 30000) {
-    return client.scheduler.run(key.join(':'), async () => {
+    // 키를 미리 계산해서 문자열 연산 최소화
+    const cacheKey = key.join(':');
+    return client.scheduler.run(cacheKey, async () => {
         const res = await request();
+        // 정규화가 필요한 경우에만 실행
         if (model)
             client.normalize(model, res);
         return res;
-    });
+    }, staleMs);
 }
