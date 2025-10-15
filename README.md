@@ -1,111 +1,153 @@
+<h1 align="center">
+  <br>
+  <img src="https://github.com/ljlm0402/fynk/raw/images/logo.png" alt="Project Logo" width="800" />
+  <br>
+  <br>
+  fynk
+  <br>
+</h1>
 
-# 🩷 Fynk
+<h4 align="center">💗 The fastest HTTP client with automatic deduplication and normalized cache</h4>
 
-[![npm version](https://badge.fury.io/js/fynk.svg)](https://badge.fury.io/js/fynk)
-[![Bundle Size](https://img.shields.io/bundlephobia/minzip/fynk?color=success&label=gzipped)](https://bundlephobia.com/package/fynk)
-[![Performance](https://img.shields.io/badge/performance-0.04ms-brightgreen)](https://github.com/ljlm0402/fynk#-performance-benchmark)
-[![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ljlm0402/fynk/blob/main/LICENSE)
+<p align ="center">
+    <a href="https://nodei.co/npm/fynk" target="_blank">
+    <img src="https://nodei.co/npm/fynk.png" alt="npm Info" />
+</a>
 
-> **The fastest HTTP client with automatic deduplication and normalized cache**
+</p>
+
+<p align="center">
+    <a href="http://npm.im/fynk" target="_blank">
+      <img src="https://img.shields.io/npm/v/fynk.svg" alt="npm Version" />
+    </a>
+    <a href="http://npm.im/fynk" target="_blank">
+      <img src="https://img.shields.io/github/v/release/ljlm0402/fynk" alt="npm Release Version" />
+    </a>
+    <a href="http://npm.im/fynk" target="_blank">
+      <img src="https://img.shields.io/npm/dm/fynk.svg" alt="npm Downloads" />
+    </a>
+    <a href="http://npm.im/fynk" target="_blank">
+      <img src="https://img.shields.io/npm/l/fynk.svg" alt="npm Package License" />
+    </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ljlm0402/fynk/stargazers" target="_blank">
+    <img src="https://img.shields.io/github/stars/ljlm0402/fynk" alt="github Stars" />
+  </a>
+  <a href="https://github.com/ljlm0402/fynk/network/members" target="_blank">
+    <img src="https://img.shields.io/github/forks/ljlm0402/fynk" alt="github Forks" />
+  </a>
+  <a href="https://github.com/ljlm0402/fynk/stargazers" target="_blank">
+    <img src="https://img.shields.io/github/contributors/ljlm0402/fynk" alt="github Contributors" />
+  </a>
+  <a href="https://github.com/ljlm0402/fynk/issues" target="_blank">
+    <img src="https://img.shields.io/github/issues/ljlm0402/fynk" alt="github Issues" />
+  </a>
+</p>
+
+---
+
+## ✨ Features
 
 Fynk is an **ultra-high-performance** reactive HTTP client featuring **automatic request deduplication**, **integrated caching**, **optimistic updates**, and **SSE live patch**. It delivers **1,700x faster performance** than traditional HTTP clients while maintaining perfect data consistency.
 
-**⚡ Performance First**: 0.04ms response time with intelligent cache-scheduler integration  
-**🔄 Zero Config Dedup**: Automatic request deduplication prevents redundant network calls  
-**🎯 Framework Agnostic**: Works seamlessly with **React 19** and **Vue 3**  
-**📦 Tiny Bundle**: Minimal footprint with maximum performance
-
----
+- **⚡ Performance First**: 0.04ms response time with intelligent cache-scheduler integration
+- **🔄 Zero Config Dedup**: Automatic request deduplication prevents redundant network calls
+- **🎯 Framework Agnostic**: Works seamlessly with **React 19** and **Vue 3**
+- **📦 Tiny Bundle**: Minimal footprint with maximum performance
 
 ## 📦 Quick Start
 
 ### Installation
+
 ```bash
 npm i fynk
 # or
 yarn add fynk
-# or 
+# or
 pnpm add fynk
 ```
 
 ### Basic Setup
+
 ```ts
-import { createClient, fetchAdapter } from 'fynk';
+import { createClient, fetchAdapter } from "fynk";
 
 // Create high-performance client
-const client = createClient({ 
-  adapter: fetchAdapter('https://api.example.com') 
+const client = createClient({
+  adapter: fetchAdapter("https://api.example.com"),
 });
 
 // Define your data models for normalized caching
-type User = { id: number; name: string; email: string; };
-const UserModel = client.defineModel<User>({ 
-  key: 'user', 
-  id: u => u.id 
+type User = { id: number; name: string; email: string };
+const UserModel = client.defineModel<User>({
+  key: "user",
+  id: (u) => u.id,
 });
 ```
 
 ### 🔄 Auto-Deduplication in Action
+
 ```ts
 // These 3 concurrent calls automatically become 1 network request!
 const [user1, user2, user3] = await Promise.all([
-  client.get<User>('/users/1'),  // → Network call
-  client.get<User>('/users/1'),  // → Waits for above
-  client.get<User>('/users/1')   // → Waits for above
+  client.get<User>("/users/1"), // → Network call
+  client.get<User>("/users/1"), // → Waits for above
+  client.get<User>("/users/1"), // → Waits for above
 ]);
 // Result: All 3 get the same data, but only 1 HTTP request! ⚡
 ```
 
 ### ⚛️ React Integration
+
 ```tsx
-import { useQuery, useMutation } from 'fynk/react';
+import { useQuery, useMutation } from "fynk/react";
 
 function UserProfile({ userId }: { userId: number }) {
   // Automatic deduplication + caching
   const { data, pending, error, refetch } = useQuery<User>(client, {
-    key: ['user', userId],
+    key: ["user", userId],
     request: () => client.get<User>(`/users/${userId}`),
-    model: UserModel  // Enables normalized caching
+    model: UserModel, // Enables normalized caching
   });
 
   // Optimistic updates for instant UX
   const { mutate } = useMutation<{ name: string }, User>(client, {
-    request: (vars) => client.post<User>('/users', { body: vars }),
+    request: (vars) => client.post<User>("/users", { body: vars }),
     optimistic: (draft, vars) => {
       // UI updates instantly, rolls back if request fails
-      draft.insert(UserModel, { id: -1, name: vars.name, email: '' });
-    }
+      draft.insert(UserModel, { id: -1, name: vars.name, email: "" });
+    },
   });
 
   if (pending) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
-  
+
   return (
     <div>
       <h1>{data?.name}</h1>
-      <button onClick={() => mutate({ name: 'New Name' })}>
-        Update Name
-      </button>
+      <button onClick={() => mutate({ name: "New Name" })}>Update Name</button>
     </div>
   );
 }
 ```
 
 ### 🍃 Vue Integration
+
 ```vue
 <script setup lang="ts">
-import { useQuery, useMutation } from 'fynk/vue';
+import { useQuery, useMutation } from "fynk/vue";
 
 const { data, pending, error, refetch } = useQuery<User>(client, {
-  key: ['user', 1],
-  request: () => client.get<User>('/users/1'),
-  model: UserModel
+  key: ["user", 1],
+  request: () => client.get<User>("/users/1"),
+  model: UserModel,
 });
 
 const { mutate, pending: saving } = useMutation(client, {
-  request: (vars) => client.post('/users', { body: vars }),
-  optimistic: (draft, vars) => draft.insert(UserModel, vars)
+  request: (vars) => client.post("/users", { body: vars }),
+  optimistic: (draft, vars) => draft.insert(UserModel, vars),
 });
 </script>
 
@@ -127,15 +169,15 @@ const { mutate, pending: saving } = useMutation(client, {
 
 Fynk delivers **unprecedented performance** compared to other HTTP clients:
 
-| Library | Response Time | vs Axios | Network Calls | Features |
-|---------|---------------|----------|---------------|----------|
-| **🥇 Fynk (Optimized)** | **0.04ms** | **3,420x faster** | **cache+dedup** | Auto dedup + cache |
-| 🥈 Alova (Cached) | 6.25ms | 22x faster | cache≈1 | Manual caching |
-| 🥉 Fynk (Basic) | 68.6ms | 2x faster | dedup≈1 | Auto deduplication |
-| Alova | 81.2ms | 1.7x faster | 10 | Basic optimization |
-| Axios | 136.8ms | baseline | 10 | No optimization |
+| Library                 | Response Time | vs Axios          | Network Calls   | Features           |
+| ----------------------- | ------------- | ----------------- | --------------- | ------------------ |
+| **🥇 Fynk (Optimized)** | **0.04ms**    | **3,420x faster** | **cache+dedup** | Auto dedup + cache |
+| 🥈 Alova (Cached)       | 6.25ms        | 22x faster        | cache≈1         | Manual caching     |
+| 🥉 Fynk (Basic)         | 68.6ms        | 2x faster         | dedup≈1         | Auto deduplication |
+| Alova                   | 81.2ms        | 1.7x faster       | 10              | Basic optimization |
+| Axios                   | 136.8ms       | baseline          | 10              | No optimization    |
 
-*Benchmark: 10 concurrent identical requests to same endpoint*
+_Benchmark: 10 concurrent identical requests to same endpoint_
 
 ```bash
 npm run bench  # Run performance comparison
@@ -144,12 +186,14 @@ npm run bench  # Run performance comparison
 ## 🚀 Key Features
 
 ### **Intelligent Performance**
+
 - **⚡ 0.04ms Response Time** — Integrated cache-scheduler with sync cache lookup
 - **🔄 Auto Request Deduplication** — Concurrent requests automatically collapse into one
 - **📊 HTTP/2 Optimization** — Keep-alive connections with minimal overhead
 - **🎯 Smart Caching** — Entity-based normalized cache prevents data duplication
 
 ### **Developer Experience**
+
 - **🧩 Framework Bridges** — Identical API for `fynk/react` and `fynk/vue`
 - **🎨 Optimistic Updates** — Built-in draft API for instant UX with rollback
 - **🔌 Axios-Style Interceptors** — Familiar request/response chain with hooks
@@ -160,40 +204,44 @@ npm run bench  # Run performance comparison
 ## 🏆 Why Choose Fynk?
 
 ### **Performance Champion**
+
 Fynk outperforms all major HTTP clients by delivering **sub-millisecond response times** through:
+
 - **Integrated Cache-Scheduler**: Sync cache checks eliminate async overhead
-- **Smart Deduplication**: Automatically prevents redundant requests 
+- **Smart Deduplication**: Automatically prevents redundant requests
 - **HTTP/2 Optimized**: Keep-alive connections with minimal network overhead
 
 ### **Zero Configuration Magic**
+
 ```ts
 // Just works - no setup needed for deduplication & caching
 const { data, pending, error } = useQuery(client, {
-  key: ['user', userId],
-  request: () => client.get(`/users/${userId}`)
+  key: ["user", userId],
+  request: () => client.get(`/users/${userId}`),
 });
 
 // Multiple components requesting same data? Only 1 network call! ⚡
 ```
 
 ### **Framework Agnostic**
-| Feature | React | Vue | Vanilla |
-|---------|-------|-----|---------|
-| useQuery Hook | ✅ `fynk/react` | ✅ `fynk/vue` | ✅ Core API |
-| Auto Deduplication | ✅ | ✅ | ✅ |
-| Normalized Cache | ✅ | ✅ | ✅ |
-| Optimistic Updates | ✅ | ✅ | ✅ |
+
+| Feature            | React           | Vue           | Vanilla     |
+| ------------------ | --------------- | ------------- | ----------- |
+| useQuery Hook      | ✅ `fynk/react` | ✅ `fynk/vue` | ✅ Core API |
+| Auto Deduplication | ✅              | ✅            | ✅          |
+| Normalized Cache   | ✅              | ✅            | ✅          |
+| Optimistic Updates | ✅              | ✅            | ✅          |
 
 ### **Comprehensive Comparison**
 
-| Capability | **Fynk** | Axios | Alova | React Query | TanStack Query |
-|------------|-----------|--------|--------|-------------|----------------|
-| **Performance** | 🟢 0.04ms | 🔴 136ms | 🟡 81ms | 🟡 ~100ms | 🟡 ~100ms |
-| **Auto Deduplication** | 🟢 Built-in | 🔴 None | 🟡 Manual | 🟡 Configurable | 🟡 Configurable |
-| **Normalized Cache** | 🟢 Entity-based | 🔴 None | 🔴 None | 🔴 Key-only | 🔴 Key-only |
-| **Bundle Size** | 🟢 ~8KB | 🟡 ~33KB | 🟢 ~15KB | 🟡 ~40KB | 🟡 ~45KB |
-| **Framework Support** | 🟢 React + Vue | 🔴 None | 🟡 React only | 🟡 React only | 🟢 Multi-framework |
-| **Real-time Updates** | 🟢 SSE Built-in | 🔴 None | 🔴 None | 🔴 Polling only | 🟡 Custom |
+| Capability             | **Fynk**        | Axios    | Alova         | React Query     | TanStack Query     |
+| ---------------------- | --------------- | -------- | ------------- | --------------- | ------------------ |
+| **Performance**        | 🟢 0.04ms       | 🔴 136ms | 🟡 81ms       | 🟡 ~100ms       | 🟡 ~100ms          |
+| **Auto Deduplication** | 🟢 Built-in     | 🔴 None  | 🟡 Manual     | 🟡 Configurable | 🟡 Configurable    |
+| **Normalized Cache**   | 🟢 Entity-based | 🔴 None  | 🔴 None       | 🔴 Key-only     | 🔴 Key-only        |
+| **Bundle Size**        | 🟢 ~8KB         | 🟡 ~33KB | 🟢 ~15KB      | 🟡 ~40KB        | 🟡 ~45KB           |
+| **Framework Support**  | 🟢 React + Vue  | 🔴 None  | 🟡 React only | 🟡 React only   | 🟢 Multi-framework |
+| **Real-time Updates**  | 🟢 SSE Built-in | 🔴 None  | 🔴 None       | 🔴 Polling only | 🟡 Custom          |
 
 > **Fynk is designed for modern apps that demand both blazing performance and effortless data consistency.**
 
@@ -202,15 +250,17 @@ const { data, pending, error } = useQuery(client, {
 ## 🚀 Advanced Features
 
 ### Real-time Updates via SSE
+
 ```ts
 // Automatically sync cache with server-sent events
-client.eventSync.on('user:updated', (userData) => {
+client.eventSync.on("user:updated", (userData) => {
   client.normalize(UserModel, userData);
   // UI automatically updates across all components! 🎯
 });
 ```
 
 ### Request/Response Interceptors
+
 ```ts
 // Axios-style interceptors
 client.interceptors.request.use((config) => {
@@ -219,12 +269,13 @@ client.interceptors.request.use((config) => {
 });
 
 client.interceptors.response.use((response) => {
-  console.log('Response received:', response);
+  console.log("Response received:", response);
   return response;
 });
 ```
 
 ### Performance Monitoring
+
 ```ts
 // Monitor cache performance
 console.log(`Cache size: ${client.scheduler.getCacheSize?.()} entries`);
@@ -245,6 +296,7 @@ npm run bench
 ```
 
 **Example output:**
+
 ```
 🚀 HTTP Client Performance Benchmark
 
