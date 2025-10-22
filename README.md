@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <img src="https://github.com/ljlm0402/fynk/raw/images/logo.png" alt="Project Logo" width="800" />
+  <img src="https://github.com/ljlm0402/fynk/raw/images/logo.png" alt="Project Logo" width="600" />
   <br>
   <br>
   fynk
@@ -46,11 +46,17 @@
   </a>
 </p>
 
+<p align="center">
+  <strong>· English <a href="./README.ko.md">· Korean</a></strong>
+</p>
+
 ---
 
 ## ✨ Features
 
-Fynk is an **ultra-high-performance** reactive HTTP client featuring **automatic request deduplication**, **integrated caching**, **optimistic updates**, and **SSE live patch**. It delivers **1,700x faster performance** than traditional HTTP clients while maintaining perfect data consistency.
+Fynk is an **ultra-high-performance** reactive HTTP client featuring **automatic request deduplication**, **integrated caching**, **optimistic updates**, and **SSE live patch**. 
+
+It delivers **1,700x faster performance** than traditional HTTP clients while maintaining perfect data consistency.
 
 - **⚡ Performance First**: 0.04ms response time with intelligent cache-scheduler integration
 - **🔄 Zero Config Dedup**: Automatic request deduplication prevents redundant network calls
@@ -234,8 +240,8 @@ const { data, pending, error } = useQuery(client, {
 
 ### **Comprehensive Comparison**
 
-| Capability             | **Fynk**        | Axios    | Alova         | React Query     | TanStack Query     |
-| ---------------------- | --------------- | -------- | ------------- | --------------- | ------------------ |
+| Capability             | **Fynk**         | Axios    | Alova         | React Query      | TanStack Query     |
+| ---------------------- | ---------------- | -------- | ------------- | ---------------- | ------------------ |
 | **Performance**        | 🟢 0.04ms       | 🔴 136ms | 🟡 81ms       | 🟡 ~100ms       | 🟡 ~100ms          |
 | **Auto Deduplication** | 🟢 Built-in     | 🔴 None  | 🟡 Manual     | 🟡 Configurable | 🟡 Configurable    |
 | **Normalized Cache**   | 🟢 Entity-based | 🔴 None  | 🔴 None       | 🔴 Key-only     | 🔴 Key-only        |
@@ -297,25 +303,27 @@ npm run bench
 
 **Example output:**
 
-```
 🚀 HTTP Client Performance Benchmark
 
 📊 Results:
-┌─────────┬────────────────────┬──────────────────────┬───────────────┐
-│ (index) │ label              │ duration             │ calls         │
-├─────────┼────────────────────┼──────────────────────┼───────────────┤
-│ 0       │ 'fynk (optimized)' │ 0.043ms             │ cache+dedup   │
-│ 1       │ 'alova (cached)'   │ 6.253ms             │ cache≈1       │
-│ 2       │ 'fynk (basic)'     │ 68.600ms            │ dedup≈1       │
-│ 3       │ 'alova'            │ 81.183ms            │ 10            │
-│ 4       │ 'axios'            │ 136.828ms           │ 10            │
-└─────────┴────────────────────┴──────────────────────┴───────────────┘
-```
+| **label**        | duration  | calls       |
+| ---------------- | --------- | ----------- |
+| fynk (optimized) | 0.043ms   | cache+dedup |
+| alova (cached)   | 6.253ms   | cache≈1     |
+| fynk (basic)     | 68.600ms  | dedup≈1     |
+| alova            | 81.183ms  | 10          |
+| axios            | 136.828ms | 10          |
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+Contributions are always welcome! Please feel free to open an issue or submit a pull request.
 
-## 📄 License
+## 💳 License
 
-MIT © [Fynk Team](https://github.com/ljlm0402)
+[MIT](LICENSE)
+
+---
+
+<p align="center">
+  Made with ❤️ by <a href="https://github.com/ljlm0402">AGUMON</a> 🦖
+</p>
