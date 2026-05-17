@@ -11,6 +11,7 @@ function createClient(opts) {
     const scheduler = (0, scheduler_js_1.createScheduler)();
     const requestInterceptors = new interceptors_js_1.InterceptorManager();
     const responseInterceptors = new interceptors_js_1.InterceptorManager();
+    const models = {};
     let draftSnapshot = null;
     const draft = {
         insert: (m, e) => { draftSnapshot !== null && draftSnapshot !== void 0 ? draftSnapshot : (draftSnapshot = cache.snapshot()); cache.upsert(m, e); },
@@ -23,8 +24,18 @@ function createClient(opts) {
             draftSnapshot = null;
         }
     };
-    function defineModel(def) { return def; }
-    function normalize(model, payload) { cache.normalize(model, payload); }
+    function defineModel(def) {
+        models[def.key] = def;
+        return def;
+    }
+    function normalize(model, payload) {
+        models[model.key] = model;
+        cache.normalize(model, payload, models);
+    }
+    function resolve(model, idOrEntity) {
+        models[model.key] = model;
+        return cache.resolve(model, idOrEntity, models);
+    }
     function watchVersion(cb) { return cache.subscribe(cb); }
     function invalidate(keyOrPredicate) {
         if (Array.isArray(keyOrPredicate))
@@ -33,6 +44,29 @@ function createClient(opts) {
             scheduler.invalidate(keyOrPredicate);
     }
     function clearCache() { scheduler.clearCache(); }
+    function inspect() {
+        return {
+            scheduler: { cacheSize: scheduler.getCacheSize() },
+            normalized: cache.inspect()
+        };
+    }
+    async function persist(storage, key = 'fynk:cache') {
+        await storage.setItem(key, JSON.stringify(cache.toJSON()));
+    }
+    async function hydrate(storage, key = 'fynk:cache') {
+        const value = await storage.getItem(key);
+        if (!value)
+            return;
+        try {
+            cache.restoreJSON(JSON.parse(value));
+        }
+        catch (error) {
+            throw new errors_js_1.FynkError('Failed to hydrate cache snapshot', {
+                config: { method: 'GET', url: key },
+                cause: error
+            });
+        }
+    }
     async function pipeline(config) {
         var _a, _b, _c;
         config = await requestInterceptors.runForRequest(config);
@@ -76,7 +110,7 @@ function createClient(opts) {
     return {
         adapter: opts.adapter,
         scheduler, cache, draft,
-        defineModel, normalize, watchVersion, invalidate, clearCache,
+        defineModel, normalize, resolve, watchVersion, invalidate, clearCache, inspect, persist, hydrate,
         get: (u, o) => core('GET', u, o),
         post: (u, o) => core('POST', u, o),
         put: (u, o) => core('PUT', u, o),

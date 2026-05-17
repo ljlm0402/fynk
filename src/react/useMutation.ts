@@ -1,13 +1,13 @@
 
 import { useState } from 'react';
-import type { HelioClient } from '../core/types.js';
+import type { FynkClient } from '../core/types.js';
 
-export function useMutation<TVars, TRes>(client: HelioClient, params: {
+export function useMutation<TVars, TRes>(client: FynkClient, params: {
   request: (vars: TVars) => Promise<TRes>;
-  optimistic?: (draft: HelioClient['draft'], vars: TVars) => void;
-  onSuccess?: (res: TRes, draft: HelioClient['draft']) => void;
-  onError?: (err: any, draft: HelioClient['draft']) => void;
-  onSettled?: (res: TRes | null, err: any, draft: HelioClient['draft']) => void;
+  optimistic?: (draft: FynkClient['draft'], vars: TVars) => void;
+  onSuccess?: (res: TRes, draft: FynkClient['draft']) => void;
+  onError?: (err: any, draft: FynkClient['draft']) => void;
+  onSettled?: (res: TRes | null, err: any, draft: FynkClient['draft']) => void;
   invalidate?: (string | (string|number)[])[];
 }) {
   const [pending, setPending] = useState(false);

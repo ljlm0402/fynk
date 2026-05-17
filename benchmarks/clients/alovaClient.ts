@@ -14,7 +14,7 @@ export async function runAlova() {
   );
   await Promise.all(reqs);
   const t1 = performance.now();
-  return { label: 'alova', duration: t1 - t0, calls: 10 };
+  return { label: 'alova', duration: t1 - t0, calls: 10, scenario: '10 concurrent identical GETs' };
 }
 
 export async function runAlovaCached() {
@@ -28,5 +28,5 @@ export async function runAlovaCached() {
   );
   await Promise.all(reqs);
   const t1 = performance.now();
-  return { label: 'alova (cached)', duration: t1 - t0, calls: 'cache≈1' };
+  return { label: 'alova (cached)', duration: t1 - t0, calls: 'cache≈1', scenario: 'warm cache repeated GETs' };
 }

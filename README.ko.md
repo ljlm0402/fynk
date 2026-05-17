@@ -58,7 +58,7 @@ Fynk는 **자동 요청 중복 제거**, **통합 캐싱**, **낙관적 업데�
 
 완벽한 데이터 일관성을 유지하면서 기존 HTTP 클라이언트 대비 **1,700배 빠른 성능**을 제공합니다.
 
-- **⚡ 성능 우선**: 지능적인 캐시-스케줄러 통합으로 0.04ms 응답 시간
+- **⚡ 성능 우선**: 중복 제거와 warm-cache 읽기를 위한 지능적인 캐시-스케줄러 통합
 - **🔄 무설정 중복 제거**: 자동 요청 중복 제거로 불필요한 네트워크 호출 방지
 - **🎯 프레임워크 독립적**: **React 19**와 **Vue 3**에서 완벽 동작
 - **📦 작은 번들**: 최대 성능을 위한 최소한의 용량
@@ -74,6 +74,14 @@ yarn add fynk
 # 또는
 pnpm add fynk
 ```
+
+## 문서
+
+- [Core API](docs/api.md)
+- [React 통합](docs/react.md)
+- [Vue 통합](docs/vue.md)
+- [벤치마크](docs/benchmarks.md)
+- [변경 로그](CHANGELOG.md)
 
 ### 기본 설정
 
@@ -173,17 +181,17 @@ const { mutate, pending: saving } = useMutation(client, {
 
 ## ⚡ 성능 벤치마크
 
-Fynk는 다른 HTTP 클라이언트와 비교하여 **전례 없는 성능**을 제공합니다:
+Fynk는 단순 HTTP 호출 속도보다, 요청 중복 제거와 캐시 재사용처럼 앱 데이터 흐름에서 줄어드는 작업량을 기준으로 벤치마킹하는 것이 적합합니다.
 
-| 라이브러리           | 응답 시간  | vs Axios         | 네트워크 호출     | 기능                 |
-| -------------------- | ---------- | ---------------- | ----------------- | -------------------- |
-| **🥇 Fynk (최적화)** | **0.04ms** | **3,420배 빠름** | **캐시+중복제거** | 자동 중복제거 + 캐시 |
-| 🥈 Alova (캐시됨)    | 6.25ms     | 22배 빠름        | 캐시≈1            | 수동 캐싱            |
-| 🥉 Fynk (기본)       | 68.6ms     | 2배 빠름         | 중복제거≈1        | 자동 중복 제거       |
-| Alova                | 81.2ms     | 1.7배 빠름       | 10                | 기본 최적화          |
-| Axios                | 136.8ms    | 기준선           | 10                | 최적화 없음          |
+| 시나리오 | 측정 항목 |
+| -------- | --------- |
+| `native fetch`, `axios`, `alova` | 동일 GET 10개 동시 요청 |
+| `ky`, `got` | 선택 항목; 패키지를 설치하면 측정에 포함 |
+| `fynk (dedup)` | 동일 GET 10개를 Fynk가 중복 제거 |
+| `fynk runQuery` | query helper 중복 제거와 모델 정규화 |
+| `fynk (cached)` | warm scheduler cache 응답 시간 |
 
-_벤치마크: 동일 엔드포인트에 대한 10개 동시 동일 요청_
+_벤치마크: 로컬 API 서버, 동일 엔드포인트에 대한 10개 동시 요청_
 
 ```bash
 npm run bench  # 성능 비교 실행
@@ -193,9 +201,9 @@ npm run bench  # 성능 비교 실행
 
 ### **지능적 성능**
 
-- **⚡ 0.04ms 응답 시간** — 동기 캐시 조회로 통합된 캐시-스케줄러
+- **⚡ 캐시-스케줄러** — 동기 캐시 조회가 포함된 통합 스케줄러
 - **🔄 자동 요청 중복 제거** — 동시 요청 자동으로 하나로 병합
-- **📊 HTTP/2 최적화** — 최소 오버헤드로 연결 유지
+- **🛡️ HTTP 기본기** — params, timeout, abort signal, retry, typed error 지원
 - **🎯 스마트 캐싱** — 엔티티 기반 정규화 캐시로 데이터 중복 방지
 
 ### **개발자 경험**
@@ -211,11 +219,11 @@ npm run bench  # 성능 비교 실행
 
 ### **성능 챔피언**
 
-Fynk는 다음을 통해 **서브밀리초 응답 시간**을 제공하여 모든 주요 HTTP 클라이언트를 능가합니다:
+Fynk는 앱 데이터 흐름에서 불필요한 작업을 줄이는 데 초점을 둡니다:
 
 - **통합 캐시-스케줄러**: 동기 캐시 확인으로 비동기 오버헤드 제거
 - **스마트 중복 제거**: 자동으로 중복 요청 방지
-- **HTTP/2 최적화**: 최소 네트워크 오버헤드로 연결 유지
+- **정규화 캐시**: 엔티티 관계를 정규화하고 필요할 때 복원
 
 ### **무설정 마법**
 
@@ -238,16 +246,36 @@ const { data, pending, error } = useQuery(client, {
 | 정규화 캐시     | ✅              | ✅            | ✅          |
 | 낙관적 업데이트 | ✅              | ✅            | ✅          |
 
-### **종합 비교**
+### **HTTP 클라이언트 비교**
 
-| 기능                | **Fynk**       | Axios    | Alova      | React Query  | TanStack Query     |
-| ------------------- | -------------- | -------- | ---------- | ------------ | ------------------ |
-| **성능**            | 🟢 0.04ms      | 🔴 136ms | 🟡 81ms   | 🟡 ~100ms   | 🟡 ~100ms          |
-| **자동 중복 제거**  | 🟢 내장        | 🔴 없음  | 🟡 수동    | 🟡 설정 가능 | 🟡 설정 가능       |
-| **정규화 캐시**     | 🟢 엔티티 기반 | 🔴 없음  | 🔴 없음    | 🔴 키만      | 🔴 키만            |
-| **번들 크기**       | 🟢 ~8KB        | 🟡 ~33KB | 🟢 ~15KB  | 🟡 ~40KB     | 🟡 ~45KB          |
-| **프레임워크 지원** | 🟢 React + Vue | 🔴 없음  | 🟡 React만 | 🟡 React만   | 🟢 멀티-프레임워크 |
-| **실시간 업데이트** | 🟢 SSE 내장    | 🔴 없음  | 🔴 없음    | 🔴 폴링만    | 🟡 커스텀          |
+아래 라이브러리는 Fynk의 core HTTP client API와 직접 비교할 수 있습니다. `got`은 Node 전용이므로 브라우저나 hook 비교가 아니라 서버/CLI 벤치마크 대상으로 보는 것이 적절합니다.
+
+| 기능 | **Fynk** | native fetch | ky | Axios | got | Alova |
+| ---- | -------- | ------------ | -- | ----- | --- | ----- |
+| 런타임 | Browser + Node | Browser + Node | Browser + Node | Browser + Node | Node only | Browser + Node |
+| Params helper | 내장 | 직접 구현 | 내장 | 내장 | 내장 | 내장 |
+| Timeout / abort | 내장 | 직접 구현 | 내장 | 내장 | 내장 | 내장 |
+| Retry | 내장 | 직접 구현 | 내장 | 플러그인/직접 구현 | 내장 | 전략 기반 |
+| 4xx/5xx 에러 모델 | `FynkError` | 직접 구현 | 내장 | 내장 | 내장 | 설정 가능 |
+| Interceptor / hook | 내장 | 직접 구현 | Hooks | Interceptors | Hooks | Middleware/hooks |
+| 요청 중복 제거 | 내장 | 직접 구현 | 직접 구현 | 직접 구현 | 직접 구현 | 전략 기반 |
+| 정규화 캐시 | 내장 | 없음 | 없음 | 없음 | 없음 | 엔티티 정규화 캐시는 아님 |
+| React/Vue 훅 | 내장 | 없음 | 없음 | 없음 | 없음 | 내장 |
+
+### **Query/Data Layer 비교**
+
+React Query와 TanStack Query는 HTTP 클라이언트가 아닙니다. 보통 `fetch`, `ky`, `axios` 같은 요청 함수를 받아 query/cache 계층을 제공합니다.
+
+| 기능 | **Fynk** | Alova | React Query | TanStack Query |
+| ---- | -------- | ----- | ----------- | -------------- |
+| HTTP client 포함 | 예 | 예 | 아니오 | 아니오 |
+| Query hook | React + Vue | 멀티 프레임워크 | React | 멀티 프레임워크 |
+| Mutation hook | React + Vue | 멀티 프레임워크 | React | 멀티 프레임워크 |
+| Infinite query | React + Vue | 지원 패턴 있음 | 내장 | 내장 |
+| 요청 중복 제거 | 내장 | 전략 기반 | query key 기반 | query key 기반 |
+| 정규화 엔티티 캐시 | 내장 | 없음 | 없음 | 없음 |
+| 낙관적 업데이트 | Draft API | 지원 | 지원 | 지원 |
+| Persistence | 캐시 스냅샷 내장 | 지원 | plugin/persister | plugin/persister |
 
 > **Fynk는 빠른 성능과 손쉬운 데이터 일관성을 모두 요구하는 현대적인 앱을 위해 설계되었습니다.**
 
@@ -259,9 +287,59 @@ const { data, pending, error } = useQuery(client, {
 
 ```ts
 // 서버 전송 이벤트로 캐시를 자동 동기화
-client.eventSync.on("user:updated", (userData) => {
+import { createEventSync } from "fynk";
+
+const events = createEventSync("/events");
+const off = events.on("user:updated", (userData) => {
   client.normalize(UserModel, userData);
-  // 모든 컴포넌트에서 UI가 자동으로 업데이트됩니다! 🎯
+});
+
+off();
+events.close();
+```
+
+### 요청 옵션
+
+```ts
+const user = await client.get<User>("/users", {
+  params: { page: 1, tags: ["admin", "active"] },
+  timeout: 5_000,
+  retry: { attempts: 2, delay: 100 },
+  dedupe: true,
+});
+```
+
+### 정규화 관계와 영속화
+
+```ts
+const User = client.defineModel<User>({ key: "user", id: user => user.id });
+const Post = client.defineModel<Post>({
+  key: "post",
+  id: post => post.id,
+  relations: { author: "user" },
+});
+
+client.normalize(Post, {
+  id: 1,
+  title: "Hello",
+  author: { id: 10, name: "Ada" },
+});
+
+const post = client.resolve(Post, 1);
+await client.persist(localStorage);
+await client.hydrate(localStorage);
+```
+
+### 무한 쿼리
+
+```tsx
+import { useInfiniteQuery } from "fynk/react";
+
+const users = useInfiniteQuery(client, {
+  key: ["users"],
+  initialPageParam: 1,
+  request: page => client.get(`/users`, { params: { page } }),
+  getNextPageParam: lastPage => lastPage.nextPage,
 });
 ```
 
@@ -283,11 +361,10 @@ client.interceptors.response.use((response) => {
 ### 성능 모니터링
 
 ```ts
-// 캐시 성능 모니터링
-console.log(`캐시 크기: ${client.scheduler.getCacheSize?.()} 항목`);
+console.log(client.inspect());
 
-// 필요시 캐시 정리
-client.scheduler.clearCache?.();
+client.invalidate(["user", 1]);
+client.clearCache();
 ```
 
 ## 📊 앱 벤치마킹
@@ -301,18 +378,7 @@ npm install
 npm run bench
 ```
 
-**출력 예시:**
-
-🚀 HTTP 클라이언트 성능 벤치마크
-
-📊 결과:
-| **label**      | duration  | calls        |
-| -------------- | --------- | ------------ |
-| fynk (최적화)  | 0.043ms   | 캐시+중복제거 |
-| alova (캐시됨) | 6.253ms   | 캐시≈1        |
-| fynk (기본)    | 68.600ms  | 중복제거≈1    |
-| alova          | 81.183ms  | 10           |
-| axios          | 136.828ms | 10           |
+벤치마크는 `label`, `duration`, `calls`, `scenario` 컬럼을 출력합니다. 실제 성능 수치는 실행 환경에 따라 달라지므로, 로컬 또는 CI에서 나온 결과를 기준으로 판단하세요.
 
 ## 🤝 기여하기
 

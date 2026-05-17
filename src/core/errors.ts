@@ -1,17 +1,17 @@
-import type { HelioRequestConfig, HelioResponse } from './types.js';
+import type { FynkRequestConfig, FynkResponse } from './types.js';
 
 export class FynkError<T = unknown> extends Error {
   readonly name = 'FynkError';
-  readonly config: HelioRequestConfig;
-  readonly response?: HelioResponse<T>;
+  readonly config: FynkRequestConfig;
+  readonly response?: FynkResponse<T>;
   readonly status?: number;
   readonly headers?: Record<string, string>;
   readonly data?: T;
   readonly cause?: unknown;
 
   constructor(message: string, options: {
-    config: HelioRequestConfig;
-    response?: HelioResponse<T>;
+    config: FynkRequestConfig;
+    response?: FynkResponse<T>;
     cause?: unknown;
   }) {
     super(message);

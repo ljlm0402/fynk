@@ -1,11 +1,11 @@
 
-import type { Adapter, FetchLike, HelioRequestConfig, HelioResponse } from '../types.js';
+import type { Adapter, FetchLike, FynkRequestConfig, FynkResponse } from '../types.js';
 import { FynkError } from '../errors.js';
 
 export function fetchAdapter(baseURL = '', fetchLike?: FetchLike): Adapter {
   const f = fetchLike ?? (globalThis.fetch as FetchLike);
 
-  const send = async <T>(config: HelioRequestConfig): Promise<HelioResponse<T>> => {
+  const send = async <T>(config: FynkRequestConfig): Promise<FynkResponse<T>> => {
     const url = buildUrl(config.baseURL ?? baseURL, config.url, config.params);
     const headers = normalizeHeaders(config.headers);
     const requestSignal = createRequestSignal(config);
@@ -82,7 +82,7 @@ export function fetchAdapter(baseURL = '', fetchLike?: FetchLike): Adapter {
     }
   };
 
-  const call = async <T>(method: HelioRequestConfig['method'], url: string, opts?: Partial<HelioRequestConfig>) => {
+  const call = async <T>(method: FynkRequestConfig['method'], url: string, opts?: Partial<FynkRequestConfig>) => {
     const resp = await send<T>({ method, url, ...(opts || {}) });
     return resp.data;
   };
@@ -97,7 +97,7 @@ export function fetchAdapter(baseURL = '', fetchLike?: FetchLike): Adapter {
   };
 }
 
-function buildUrl(baseURL: string, url: string, params?: HelioRequestConfig['params']): string {
+function buildUrl(baseURL: string, url: string, params?: FynkRequestConfig['params']): string {
   const joined = !baseURL || /^https?:\/\//i.test(url)
     ? url
     : `${baseURL.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
@@ -109,7 +109,7 @@ function buildUrl(baseURL: string, url: string, params?: HelioRequestConfig['par
   return `${joined}${separator}${searchParams}`;
 }
 
-function serializeParams(params?: HelioRequestConfig['params']): string {
+function serializeParams(params?: FynkRequestConfig['params']): string {
   if (!params) return '';
   if (params instanceof URLSearchParams) return params.toString();
 
@@ -158,7 +158,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
   return text as T;
 }
 
-function createRequestSignal(config: HelioRequestConfig): { signal?: AbortSignal; cleanup?: () => void } {
+function createRequestSignal(config: FynkRequestConfig): { signal?: AbortSignal; cleanup?: () => void } {
   if (config.timeout === undefined) return { signal: config.signal };
 
   if (config.timeout <= 0) {

@@ -1,7 +1,5 @@
 
-import { createClient } from 'fynk';
-import { fetchAdapter } from 'fynk';
-import { runQuery } from 'fynk';
+import { createClient, fetchAdapter, runQuery } from 'fynk';
 
 const client = createClient({ adapter: fetchAdapter('http://localhost:4000') });
 // 임시로 간단한 캐시된 클라이언트 생성 (타입 이슈 회피)
@@ -12,12 +10,10 @@ const UserModel = client.defineModel<User>({ key: 'user', id: u => u.id });
 const UserModelCached = clientCached.defineModel<User>({ key: 'user', id: u => u.id });
 
 export async function runFynk() {
-  const key = ['user', 1];
-  const req = () => client.get<User>('/users/1');
   const t0 = performance.now();
-  await Promise.all(Array.from({ length: 10 }).map(() => runQuery(client, key, req, UserModel)));
+  await Promise.all(Array.from({ length: 10 }).map(() => client.get<User>('/users/1', { meta: { staleTime: 0 } })));
   const t1 = performance.now();
-  return { label: 'fynk', duration: t1 - t0, calls: 'dedup≈1' };
+  return { label: 'fynk (dedup)', duration: t1 - t0, calls: 'dedup≈1', scenario: '10 concurrent identical GETs' };
 }
 
 export async function runFynkCached() {
@@ -33,5 +29,14 @@ export async function runFynkCached() {
     runQuery(clientCached, key, req, UserModelCached, 60000)
   ));
   const t1 = performance.now();
-  return { label: 'fynk (optimized)', duration: t1 - t0, calls: 'cache+dedup' };
+  return { label: 'fynk (cached)', duration: t1 - t0, calls: 'cache+dedup', scenario: 'warm cache repeated GETs' };
+}
+
+export async function runFynkQuery() {
+  const key = ['user', 1];
+  const req = () => client.get<User>('/users/1', { meta: { staleTime: 0 } });
+  const t0 = performance.now();
+  await Promise.all(Array.from({ length: 10 }).map(() => runQuery(client, key, req, UserModel, 0)));
+  const t1 = performance.now();
+  return { label: 'fynk runQuery', duration: t1 - t0, calls: 'dedup≈1', scenario: 'query helper dedupe' };
 }

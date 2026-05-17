@@ -16,3 +16,4 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./useQuery.js"), exports);
 __exportStar(require("./useMutation.js"), exports);
+__exportStar(require("./useInfiniteQuery.js"), exports);

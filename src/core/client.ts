@@ -4,15 +4,16 @@ import { createScheduler } from './scheduler.js';
 import { InterceptorManager } from './interceptors.js';
 import { FynkError } from './errors.js';
 import type {
-  Adapter, CacheSnapshot, DraftApi, HelioClient, HelioRequestConfig, HelioResponse, ModelDef, RequestFn, RetryOptions
+  Adapter, CacheSnapshot, DraftApi, EntityId, FynkStorage, FynkClient, FynkRequestConfig, FynkResponse, ModelDef, ModelRegistry, RequestFn, RetryOptions
 } from './types.js';
 
-export function createClient(opts: { adapter: Adapter }) : HelioClient {
+export function createClient(opts: { adapter: Adapter }) : FynkClient {
   const cache = createNormalizedCache();
   const scheduler = createScheduler();
 
-  const requestInterceptors = new InterceptorManager<HelioRequestConfig>();
-  const responseInterceptors = new InterceptorManager<HelioResponse>();
+  const requestInterceptors = new InterceptorManager<FynkRequestConfig>();
+  const responseInterceptors = new InterceptorManager<FynkResponse>();
+  const models: ModelRegistry = {};
   let draftSnapshot: CacheSnapshot | null = null;
 
   const draft: DraftApi = {
@@ -26,20 +27,51 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
     }
   };
 
-  function defineModel<T>(def: ModelDef<T>): ModelDef<T> { return def; }
-  function normalize<T>(model: ModelDef<T>, payload: T | T[]) { cache.normalize(model, payload); }
+  function defineModel<T>(def: ModelDef<T>): ModelDef<T> {
+    models[def.key] = def;
+    return def;
+  }
+  function normalize<T>(model: ModelDef<T>, payload: T | T[]) {
+    models[model.key] = model;
+    cache.normalize(model, payload, models);
+  }
+  function resolve<T>(model: ModelDef<T>, idOrEntity: EntityId | T) {
+    models[model.key] = model;
+    return cache.resolve(model, idOrEntity as any, models);
+  }
   function watchVersion(cb: () => void) { return cache.subscribe(cb); }
   function invalidate(keyOrPredicate?: string | (string|number)[] | ((key: string) => boolean)) {
     if (Array.isArray(keyOrPredicate)) scheduler.invalidate(queryCacheKey(keyOrPredicate));
     else scheduler.invalidate(keyOrPredicate);
   }
   function clearCache() { scheduler.clearCache(); }
+  function inspect() {
+    return {
+      scheduler: { cacheSize: scheduler.getCacheSize() },
+      normalized: cache.inspect()
+    };
+  }
+  async function persist(storage: FynkStorage, key = 'fynk:cache') {
+    await storage.setItem(key, JSON.stringify(cache.toJSON()));
+  }
+  async function hydrate(storage: FynkStorage, key = 'fynk:cache') {
+    const value = await storage.getItem(key);
+    if (!value) return;
+    try {
+      cache.restoreJSON(JSON.parse(value));
+    } catch (error) {
+      throw new FynkError('Failed to hydrate cache snapshot', {
+        config: { method: 'GET', url: key },
+        cause: error
+      });
+    }
+  }
 
-  async function pipeline<T>(config: HelioRequestConfig): Promise<HelioResponse<T>> {
+  async function pipeline<T>(config: FynkRequestConfig): Promise<FynkResponse<T>> {
     config = await requestInterceptors.runForRequest(config);
     if (config.hooks?.beforeRequest) config = await config.hooks.beforeRequest(config);
 
-    let response: HelioResponse<T>;
+    let response: FynkResponse<T>;
     try {
       response = await opts.adapter.send<T>(config);
     } catch (err) {
@@ -53,7 +85,7 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
     return response;
   }
 
-  async function core<T>(method: HelioRequestConfig['method'], url: string, opts?: Partial<HelioRequestConfig>) {
+  async function core<T>(method: FynkRequestConfig['method'], url: string, opts?: Partial<FynkRequestConfig>) {
     const config = { method, url, ...(opts || {}) };
     const run = async () => {
       const res = await withRetry(config, () => pipeline<T>(config));
@@ -77,7 +109,7 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
   return {
     adapter: opts.adapter,
     scheduler, cache, draft,
-    defineModel, normalize, watchVersion, invalidate, clearCache,
+    defineModel, normalize, resolve, watchVersion, invalidate, clearCache, inspect, persist, hydrate,
     get: (u, o) => core('GET', u, o),
     post: (u, o) => core('POST', u, o),
     put: (u, o) => core('PUT', u, o),
@@ -90,7 +122,7 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
   };
 }
 
-export async function runQuery<T>(client: HelioClient, key: (string|number)[], request: RequestFn<T>, model?: ModelDef<any>, staleMs = 30_000) {
+export async function runQuery<T>(client: FynkClient, key: (string|number)[], request: RequestFn<T>, model?: ModelDef<any>, staleMs = 30_000) {
   // 키를 미리 계산해서 문자열 연산 최소화
   const cacheKey = queryCacheKey(key);
   
@@ -106,7 +138,7 @@ function queryCacheKey(key: (string|number)[]) {
   return key.join(':');
 }
 
-function requestCacheKey(config: HelioRequestConfig): string {
+function requestCacheKey(config: FynkRequestConfig): string {
   return [
     config.method,
     config.baseURL || '',
@@ -131,9 +163,9 @@ function stringifyCachePart(value: unknown): string {
 }
 
 async function withRetry<T>(
-  config: HelioRequestConfig,
-  run: () => Promise<HelioResponse<T>>
-): Promise<HelioResponse<T>> {
+  config: FynkRequestConfig,
+  run: () => Promise<FynkResponse<T>>
+): Promise<FynkResponse<T>> {
   const retry = normalizeRetry(config.retry);
   let attempt = 0;
 
@@ -149,12 +181,12 @@ async function withRetry<T>(
   }
 }
 
-function normalizeRetry(retry: HelioRequestConfig['retry']): Required<Pick<RetryOptions, 'attempts' | 'statusCodes' | 'methods'>> & RetryOptions {
+function normalizeRetry(retry: FynkRequestConfig['retry']): Required<Pick<RetryOptions, 'attempts' | 'statusCodes' | 'methods'>> & RetryOptions {
   const defaults = {
     attempts: 0,
     delay: 100,
     statusCodes: [408, 425, 429, 500, 502, 503, 504],
-    methods: ['GET', 'PUT', 'DELETE'] as HelioRequestConfig['method'][]
+    methods: ['GET', 'PUT', 'DELETE'] as FynkRequestConfig['method'][]
   };
 
   if (retry === undefined) return defaults;
@@ -165,7 +197,7 @@ function normalizeRetry(retry: HelioRequestConfig['retry']): Required<Pick<Retry
 async function shouldRetry(
   error: unknown,
   attempt: number,
-  config: HelioRequestConfig,
+  config: FynkRequestConfig,
   retry: ReturnType<typeof normalizeRetry>
 ): Promise<boolean> {
   if (config.signal?.aborted) return false;

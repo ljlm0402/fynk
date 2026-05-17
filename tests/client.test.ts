@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient, FynkError } from '../src/index.js';
-import type { Adapter, HelioRequestConfig, HelioResponse } from '../src/index.js';
+import type { Adapter, FynkRequestConfig, FynkResponse } from '../src/index.js';
 
 function createAdapter(send: Adapter['send']): Adapter {
-  const call = async <T>(method: HelioRequestConfig['method'], url: string, opts?: Partial<HelioRequestConfig>) => {
+  const call = async <T>(method: FynkRequestConfig['method'], url: string, opts?: Partial<FynkRequestConfig>) => {
     const response = await send<T>({ method, url, ...(opts || {}) });
     return response.data;
   };
@@ -32,7 +32,7 @@ test('createClient deduplicates concurrent GET requests', async () => {
         headers: {},
         data: { count },
         config
-      } satisfies HelioResponse<{ count: number }>;
+      } satisfies FynkResponse<{ count: number }>;
     })
   });
 
@@ -207,4 +207,115 @@ test('draft commit keeps optimistic cache changes', () => {
   client.draft.rollback();
 
   assert.deepEqual(client.cache.get(User, 1), { id: 1, name: 'Grace' });
+});
+
+test('normalized cache stores and resolves related entities', () => {
+  const client = createClient({
+    adapter: createAdapter(async (config) => ({
+      status: 200,
+      ok: true,
+      statusText: 'OK',
+      headers: {},
+      data: null,
+      config
+    }))
+  });
+
+  const User = client.defineModel<{ id: number; name: string }>({
+    key: 'user',
+    id: user => user.id
+  });
+  const Post = client.defineModel<{ id: number; title: string; author: number | { id: number; name: string } }>({
+    key: 'post',
+    id: post => post.id,
+    relations: { author: 'user' }
+  });
+
+  client.normalize(Post, { id: 10, title: 'Hello', author: { id: 1, name: 'Ada' } });
+
+  assert.deepEqual(client.cache.get(Post, 10), { id: 10, title: 'Hello', author: 1 });
+  assert.deepEqual(client.cache.get(User, 1), { id: 1, name: 'Ada' });
+  assert.deepEqual(client.resolve(Post, 10), { id: 10, title: 'Hello', author: { id: 1, name: 'Ada' } });
+});
+
+test('client persists, hydrates, and inspects normalized cache', async () => {
+  const storage = new Map<string, string>();
+  const storageAdapter = {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => { storage.set(key, value); }
+  };
+  const adapter = createAdapter(async (config) => ({
+    status: 200,
+    ok: true,
+    statusText: 'OK',
+    headers: {},
+    data: null,
+    config
+  }));
+  const first = createClient({ adapter });
+  const User = first.defineModel<{ id: number; name: string }>({
+    key: 'user',
+    id: user => user.id
+  });
+
+  first.normalize(User, { id: 1, name: 'Ada' });
+  await first.persist(storageAdapter);
+
+  const second = createClient({ adapter });
+  const SecondUser = second.defineModel<{ id: number; name: string }>({
+    key: 'user',
+    id: user => user.id
+  });
+  await second.hydrate(storageAdapter);
+
+  assert.deepEqual(second.cache.get(SecondUser, 1), { id: 1, name: 'Ada' });
+  assert.equal(second.inspect().normalized.tables.user.size, 1);
+});
+
+test('client wraps invalid persisted cache snapshots in FynkError', async () => {
+  const client = createClient({
+    adapter: createAdapter(async (config) => ({
+      status: 200,
+      ok: true,
+      statusText: 'OK',
+      headers: {},
+      data: null,
+      config
+    }))
+  });
+
+  await assert.rejects(
+    () => client.hydrate({
+      getItem: () => '{not-json',
+      setItem: () => {}
+    }),
+    (error) => {
+      assert.ok(error instanceof FynkError);
+      assert.equal(error.message, 'Failed to hydrate cache snapshot');
+      return true;
+    }
+  );
+});
+
+test('createClient does not retry non-retryable statuses by default', async () => {
+  let count = 0;
+  const client = createClient({
+    adapter: createAdapter(async (config) => {
+      count += 1;
+      throw new FynkError('Request failed with status 404', {
+        config,
+        response: {
+          status: 404,
+          ok: false,
+          statusText: 'Not Found',
+          headers: {},
+          data: { error: 'missing' },
+          config
+        }
+      });
+    })
+  });
+
+  await assert.rejects(() => client.get('/missing', { retry: { attempts: 3, delay: 0 } }));
+  assert.equal(count, 1);
 });

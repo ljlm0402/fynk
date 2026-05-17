@@ -33,7 +33,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node scripts/write-cjs-package.cjs",
-    "test": "tsx --test tests/**/*.test.ts",
+    "test": "tsx --test tests/client.test.ts tests/fetch-adapter.test.ts",
+    "test:package": "npm run build && tsx --test tests/package.test.ts",
     "dev": "tsc -w -p tsconfig.json",
     "bench": "tsx benchmarks/runBench.ts",
     "clean": "rimraf dist dist-cjs",

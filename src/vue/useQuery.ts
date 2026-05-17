@@ -1,10 +1,10 @@
 
 // @ts-ignore
 import { ref, onUnmounted } from 'vue';
-import type { HelioClient, ModelDef, RequestFn } from '../core/types.js';
+import type { FynkClient, ModelDef, RequestFn } from '../core/types.js';
 import { runQuery } from '../core/client.js';
 
-export function useQuery<T, TSelected = T>(client: HelioClient, params: {
+export function useQuery<T, TSelected = T>(client: FynkClient, params: {
   key: (string|number)[];
   request: RequestFn<T>;
   model?: ModelDef<any>;

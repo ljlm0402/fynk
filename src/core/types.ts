@@ -7,7 +7,9 @@ export type ModelDef<T> = {
   relations?: Record<string, string | string[]>;
 };
 
-export type HelioRequestConfig = {
+export type ModelRegistry = Record<string, ModelDef<any>>;
+
+export type FynkRequestConfig = {
   url: string;
   method: 'GET'|'POST'|'PUT'|'PATCH'|'DELETE';
   baseURL?: string;
@@ -18,13 +20,13 @@ export type HelioRequestConfig = {
   timeout?: number;
   retry?: number | RetryOptions;
   dedupe?: boolean;
-  dedupeKey?: string | ((config: HelioRequestConfig) => string);
+  dedupeKey?: string | ((config: FynkRequestConfig) => string);
   throwHttpErrors?: boolean;
   validateStatus?: (status: number) => boolean;
   meta?: Record<string, any>;
   hooks?: {
-    beforeRequest?: (c: HelioRequestConfig) => HelioRequestConfig | Promise<HelioRequestConfig>;
-    responded?:  <T>(r: HelioResponse<T>) => HelioResponse<T> | Promise<HelioResponse<T>>;
+    beforeRequest?: (c: FynkRequestConfig) => FynkRequestConfig | Promise<FynkRequestConfig>;
+    responded?:  <T>(r: FynkResponse<T>) => FynkResponse<T> | Promise<FynkResponse<T>>;
     respondedError?: (e: any) => any | Promise<any>;
   };
 };
@@ -33,17 +35,17 @@ export type RetryOptions = {
   attempts?: number;
   delay?: number | ((attempt: number, error: unknown) => number);
   statusCodes?: number[];
-  methods?: HelioRequestConfig['method'][];
-  shouldRetry?: (error: unknown, attempt: number, config: HelioRequestConfig) => boolean | Promise<boolean>;
+  methods?: FynkRequestConfig['method'][];
+  shouldRetry?: (error: unknown, attempt: number, config: FynkRequestConfig) => boolean | Promise<boolean>;
 };
 
-export type HelioResponse<T = any> = {
+export type FynkResponse<T = any> = {
   status: number;
   ok: boolean;
   statusText: string;
   headers: Record<string, string>;
   data: T;
-  config: HelioRequestConfig;
+  config: FynkRequestConfig;
 };
 
 export type RequestFn<T> = () => Promise<T>;
@@ -58,14 +60,21 @@ export type Scheduler = {
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export type CacheSnapshot = Map<string, Map<EntityId, any>>;
+export type SerializableCacheSnapshot = Record<string, Record<string, any>>;
+
+export type FynkStorage = {
+  getItem(key: string): string | null | Promise<string | null>;
+  setItem(key: string, value: string): void | Promise<void>;
+  removeItem?(key: string): void | Promise<void>;
+};
 
 export type Adapter = {
-  send<T = unknown>(config: HelioRequestConfig): Promise<HelioResponse<T>>;
-  get<T = unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
-  post<T = unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
-  put?<T = unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
-  patch?<T = unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
-  delete?<T = unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
+  send<T = unknown>(config: FynkRequestConfig): Promise<FynkResponse<T>>;
+  get<T = unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
+  post<T = unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
+  put?<T = unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
+  patch?<T = unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
+  delete?<T = unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
 };
 
 export type EventSync = {
@@ -85,9 +94,13 @@ export type NormalizedCache = {
   upsert<T>(model: ModelDef<T>, entity: T): void;
   patch<T>(model: ModelDef<T>, id: EntityId, partial: Partial<T>): void;
   get<T>(model: ModelDef<T>, id: EntityId): T | undefined;
-  normalize<T>(model: ModelDef<T>, data: T | T[]): void;
+  normalize<T>(model: ModelDef<T>, data: T | T[], registry?: ModelRegistry): void;
+  resolve<T>(model: ModelDef<T>, idOrEntity: EntityId | T, registry: ModelRegistry): T | undefined;
   snapshot(): CacheSnapshot;
+  toJSON(): SerializableCacheSnapshot;
   restore(snapshot: CacheSnapshot): void;
+  restoreJSON(snapshot: SerializableCacheSnapshot): void;
+  inspect(): { version: number; tables: Record<string, { size: number; ids: string[] }> };
   version: { value: number };
   subscribe(fn: () => void): () => void;
 };
@@ -107,23 +120,27 @@ export type InterceptorUse<V> = (
   runWhen?: (input: V) => boolean
 ) => number;
 
-export type HelioClient = {
+export type FynkClient = {
   adapter: Adapter;
   scheduler: Scheduler;
   cache: NormalizedCache;
   draft: DraftApi;
   defineModel<T>(def: ModelDef<T>): ModelDef<T>;
   normalize<T>(model: ModelDef<T>, payload: T | T[]): void;
+  resolve<T>(model: ModelDef<T>, idOrEntity: EntityId | T): T | undefined;
   watchVersion(cb: () => void): () => void;
   invalidate(keyOrPredicate?: string | (string|number)[] | ((key: string) => boolean)): void;
   clearCache(): void;
-  get<T=unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
-  post<T=unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
-  put<T=unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
-  patch<T=unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
-  delete<T=unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
+  inspect(): { scheduler: { cacheSize: number }; normalized: ReturnType<NormalizedCache['inspect']> };
+  persist(storage: FynkStorage, key?: string): Promise<void>;
+  hydrate(storage: FynkStorage, key?: string): Promise<void>;
+  get<T=unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
+  post<T=unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
+  put<T=unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
+  patch<T=unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
+  delete<T=unknown>(url: string, opts?: Partial<FynkRequestConfig>): Promise<T>;
   interceptors: {
-    request: { use: InterceptorUse<HelioRequestConfig>; eject: (id: number) => void };
-    response:{ use: InterceptorUse<HelioResponse>; eject: (id: number) => void };
+    request: { use: InterceptorUse<FynkRequestConfig>; eject: (id: number) => void };
+    response:{ use: InterceptorUse<FynkResponse>; eject: (id: number) => void };
   };
 };
