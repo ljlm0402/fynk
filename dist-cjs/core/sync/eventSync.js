@@ -17,6 +17,11 @@ function createEventSync(url) {
             if (!listeners.has(type))
                 listeners.set(type, new Set());
             listeners.get(type).add(fn);
+            return () => { var _a; return (_a = listeners.get(type)) === null || _a === void 0 ? void 0 : _a.delete(fn); };
+        },
+        close() {
+            listeners.clear();
+            es.close();
         }
     };
 }

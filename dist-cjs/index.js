@@ -14,7 +14,8 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-__exportStar(require("./core/types"), exports);
-__exportStar(require("./core/client"), exports);
-__exportStar(require("./core/adapters/fetch"), exports);
-__exportStar(require("./core/sync/eventSync"), exports);
+__exportStar(require("./core/types.js"), exports);
+__exportStar(require("./core/errors.js"), exports);
+__exportStar(require("./core/client.js"), exports);
+__exportStar(require("./core/adapters/fetch.js"), exports);
+__exportStar(require("./core/sync/eventSync.js"), exports);

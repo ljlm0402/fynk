@@ -58,7 +58,7 @@ Fynk is an **ultra-high-performance** reactive HTTP client featuring **automatic
 
 It delivers **1,700x faster performance** than traditional HTTP clients while maintaining perfect data consistency.
 
-- **⚡ Performance First**: 0.04ms response time with intelligent cache-scheduler integration
+- **⚡ Performance First**: intelligent cache-scheduler integration for dedupe and warm-cache reads
 - **🔄 Zero Config Dedup**: Automatic request deduplication prevents redundant network calls
 - **🎯 Framework Agnostic**: Works seamlessly with **React 19** and **Vue 3**
 - **📦 Tiny Bundle**: Minimal footprint with maximum performance
@@ -74,6 +74,15 @@ yarn add fynk
 # or
 pnpm add fynk
 ```
+
+## Documentation
+
+- [Core API](docs/api.md)
+- [React integration](docs/react.md)
+- [Vue integration](docs/vue.md)
+- [Benchmarks](docs/benchmarks.md)
+- [Migrating to 2.0](docs/migration-v2.md)
+- [Changelog](CHANGELOG.md)
 
 ### Basic Setup
 
@@ -173,17 +182,17 @@ const { mutate, pending: saving } = useMutation(client, {
 
 ## ⚡ Performance Benchmark
 
-Fynk delivers **unprecedented performance** compared to other HTTP clients:
+Fynk should be benchmarked by the behavior it adds on top of HTTP: request deduplication, warm cache reads, and query-level reuse.
 
-| Library                 | Response Time | vs Axios          | Network Calls   | Features           |
-| ----------------------- | ------------- | ----------------- | --------------- | ------------------ |
-| **🥇 Fynk (Optimized)** | **0.04ms**    | **3,420x faster** | **cache+dedup** | Auto dedup + cache |
-| 🥈 Alova (Cached)       | 6.25ms        | 22x faster        | cache≈1         | Manual caching     |
-| 🥉 Fynk (Basic)         | 68.6ms        | 2x faster         | dedup≈1         | Auto deduplication |
-| Alova                   | 81.2ms        | 1.7x faster       | 10              | Basic optimization |
-| Axios                   | 136.8ms       | baseline          | 10              | No optimization    |
+| Scenario | What it measures |
+| -------- | ---------------- |
+| `native fetch`, `axios`, `alova` | Raw 10 concurrent identical GET requests |
+| `ky`, `got` | Optional rows; install those packages to include them |
+| `fynk (dedup)` | 10 identical concurrent GETs collapsed by Fynk |
+| `fynk runQuery` | Query helper dedupe with model normalization |
+| `fynk (cached)` | Warm scheduler cache latency |
 
-_Benchmark: 10 concurrent identical requests to same endpoint_
+_Benchmark: local API server, 10 concurrent identical requests to the same endpoint._
 
 ```bash
 npm run bench  # Run performance comparison
@@ -193,9 +202,9 @@ npm run bench  # Run performance comparison
 
 ### **Intelligent Performance**
 
-- **⚡ 0.04ms Response Time** — Integrated cache-scheduler with sync cache lookup
+- **⚡ Cache-Scheduler** — Integrated scheduler with sync cache lookup
 - **🔄 Auto Request Deduplication** — Concurrent requests automatically collapse into one
-- **📊 HTTP/2 Optimization** — Keep-alive connections with minimal overhead
+- **🛡️ HTTP Basics Included** — Params, timeout, abort signals, retry, and typed errors
 - **🎯 Smart Caching** — Entity-based normalized cache prevents data duplication
 
 ### **Developer Experience**
@@ -203,7 +212,7 @@ npm run bench  # Run performance comparison
 - **🧩 Framework Bridges** — Identical API for `fynk/react` and `fynk/vue`
 - **🎨 Optimistic Updates** — Built-in draft API for instant UX with rollback
 - **🔌 Axios-Style Interceptors** — Familiar request/response chain with hooks
-- **📡 Live Sync (SSE)** — Real-time cache updates via Server-Sent Events
+- **📡 Live Sync (SSE)** — Real-time updates via Server-Sent Events
 
 ---
 
@@ -211,11 +220,11 @@ npm run bench  # Run performance comparison
 
 ### **Performance Champion**
 
-Fynk outperforms all major HTTP clients by delivering **sub-millisecond response times** through:
+Fynk is designed to reduce redundant work in app data flows through:
 
 - **Integrated Cache-Scheduler**: Sync cache checks eliminate async overhead
 - **Smart Deduplication**: Automatically prevents redundant requests
-- **HTTP/2 Optimized**: Keep-alive connections with minimal network overhead
+- **Normalized Cache**: Entity relations can be normalized and resolved later
 
 ### **Zero Configuration Magic**
 
@@ -238,16 +247,36 @@ const { data, pending, error } = useQuery(client, {
 | Normalized Cache   | ✅              | ✅            | ✅          |
 | Optimistic Updates | ✅              | ✅            | ✅          |
 
-### **Comprehensive Comparison**
+### **HTTP Client Comparison**
 
-| Capability             | **Fynk**         | Axios    | Alova         | React Query      | TanStack Query     |
-| ---------------------- | ---------------- | -------- | ------------- | ---------------- | ------------------ |
-| **Performance**        | 🟢 0.04ms       | 🔴 136ms | 🟡 81ms       | 🟡 ~100ms       | 🟡 ~100ms          |
-| **Auto Deduplication** | 🟢 Built-in     | 🔴 None  | 🟡 Manual     | 🟡 Configurable | 🟡 Configurable    |
-| **Normalized Cache**   | 🟢 Entity-based | 🔴 None  | 🔴 None       | 🔴 Key-only     | 🔴 Key-only        |
-| **Bundle Size**        | 🟢 ~8KB         | 🟡 ~33KB | 🟢 ~15KB      | 🟡 ~40KB        | 🟡 ~45KB           |
-| **Framework Support**  | 🟢 React + Vue  | 🔴 None  | 🟡 React only | 🟡 React only   | 🟢 Multi-framework |
-| **Real-time Updates**  | 🟢 SSE Built-in | 🔴 None  | 🔴 None       | 🔴 Polling only | 🟡 Custom          |
+These libraries can be compared with Fynk's core HTTP client API. `got` is Node-only, so it belongs in server/CLI benchmarks rather than browser or hook comparisons.
+
+| Capability | **Fynk** | native fetch | ky | Axios | got | Alova |
+| ---------- | -------- | ------------ | -- | ----- | --- | ----- |
+| Runtime | Browser + Node | Browser + Node | Browser + Node | Browser + Node | Node only | Browser + Node |
+| Params helper | Built-in | Manual | Built-in | Built-in | Built-in | Built-in |
+| Timeout / abort | Built-in | Manual | Built-in | Built-in | Built-in | Built-in |
+| Retry | Built-in | Manual | Built-in | Plugin/manual | Built-in | Strategy-based |
+| 4xx/5xx error model | `FynkError` | Manual | Built-in | Built-in | Built-in | Configurable |
+| Interceptors / hooks | Built-in | Manual | Hooks | Interceptors | Hooks | Middleware/hooks |
+| Request dedupe | Built-in | Manual | Manual | Manual | Manual | Strategy-based |
+| Normalized cache | Built-in | None | None | None | None | No entity-normalized cache |
+| React/Vue hooks | Built-in | None | None | None | None | Built-in |
+
+### **Query/Data Layer Comparison**
+
+React Query and TanStack Query are not HTTP clients. They are query/cache layers that call another client such as `fetch`, `ky`, or `axios`.
+
+| Capability | **Fynk** | Alova | React Query | TanStack Query |
+| ---------- | -------- | ----- | ----------- | -------------- |
+| Ships HTTP client | Yes | Yes | No | No |
+| Query hook | React + Vue | Multi-framework | React | Multi-framework |
+| Mutation hook | React + Vue | Multi-framework | React | Multi-framework |
+| Infinite query | React + Vue | Supported patterns | Built-in | Built-in |
+| Request dedupe | Built-in | Strategy-based | Query-key based | Query-key based |
+| Normalized entity cache | Built-in | No | No | No |
+| Optimistic update | Draft API | Supported | Supported | Supported |
+| Persistence | Built-in cache snapshot | Supported | Plugin/persister | Plugin/persister |
 
 > **Fynk is designed for modern apps that demand both blazing performance and effortless data consistency.**
 
@@ -259,9 +288,59 @@ const { data, pending, error } = useQuery(client, {
 
 ```ts
 // Automatically sync cache with server-sent events
-client.eventSync.on("user:updated", (userData) => {
+import { createEventSync } from "fynk";
+
+const events = createEventSync("/events");
+const off = events.on("user:updated", (userData) => {
   client.normalize(UserModel, userData);
-  // UI automatically updates across all components! 🎯
+});
+
+off();
+events.close();
+```
+
+### Request Options
+
+```ts
+const user = await client.get<User>("/users", {
+  params: { page: 1, tags: ["admin", "active"] },
+  timeout: 5_000,
+  retry: { attempts: 2, delay: 100 },
+  dedupe: true,
+});
+```
+
+### Normalized Relations and Persistence
+
+```ts
+const User = client.defineModel<User>({ key: "user", id: user => user.id });
+const Post = client.defineModel<Post>({
+  key: "post",
+  id: post => post.id,
+  relations: { author: "user" },
+});
+
+client.normalize(Post, {
+  id: 1,
+  title: "Hello",
+  author: { id: 10, name: "Ada" },
+});
+
+const post = client.resolve(Post, 1);
+await client.persist(localStorage);
+await client.hydrate(localStorage);
+```
+
+### Infinite Queries
+
+```tsx
+import { useInfiniteQuery } from "fynk/react";
+
+const users = useInfiniteQuery(client, {
+  key: ["users"],
+  initialPageParam: 1,
+  request: page => client.get(`/users`, { params: { page } }),
+  getNextPageParam: lastPage => lastPage.nextPage,
 });
 ```
 
@@ -283,11 +362,10 @@ client.interceptors.response.use((response) => {
 ### Performance Monitoring
 
 ```ts
-// Monitor cache performance
-console.log(`Cache size: ${client.scheduler.getCacheSize?.()} entries`);
+console.log(client.inspect());
 
-// Clear cache when needed
-client.scheduler.clearCache?.();
+client.invalidate(["user", 1]);
+client.clearCache();
 ```
 
 ## 📊 Benchmarking Your App
@@ -301,18 +379,7 @@ npm install
 npm run bench
 ```
 
-**Example output:**
-
-🚀 HTTP Client Performance Benchmark
-
-📊 Results:
-| **label**        | duration  | calls       |
-| ---------------- | --------- | ----------- |
-| fynk (optimized) | 0.043ms   | cache+dedup |
-| alova (cached)   | 6.253ms   | cache≈1     |
-| fynk (basic)     | 68.600ms  | dedup≈1     |
-| alova            | 81.183ms  | 10          |
-| axios            | 136.828ms | 10          |
+The benchmark prints a table with `label`, `duration`, `calls`, and `scenario`. Use the output from your own machine or CI as the source of truth.
 
 ## 🤝 Contributing
 

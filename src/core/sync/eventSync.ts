@@ -1,5 +1,5 @@
 
-import type { EventSync } from '../types';
+import type { EventSync } from '../types.js';
 
 export function createEventSync(url: string): EventSync {
   const listeners = new Map<string, Set<(p: any) => void>>();
@@ -14,6 +14,11 @@ export function createEventSync(url: string): EventSync {
     on(type, fn) {
       if (!listeners.has(type)) listeners.set(type, new Set());
       listeners.get(type)!.add(fn);
+      return () => listeners.get(type)?.delete(fn);
+    },
+    close() {
+      listeners.clear();
+      es.close();
     }
   };
 }
