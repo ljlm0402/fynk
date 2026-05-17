@@ -16,6 +16,9 @@ export type HelioRequestConfig = {
   body?: any;
   signal?: AbortSignal;
   timeout?: number;
+  retry?: number | RetryOptions;
+  dedupe?: boolean;
+  dedupeKey?: string | ((config: HelioRequestConfig) => string);
   throwHttpErrors?: boolean;
   validateStatus?: (status: number) => boolean;
   meta?: Record<string, any>;
@@ -24,6 +27,14 @@ export type HelioRequestConfig = {
     responded?:  <T>(r: HelioResponse<T>) => HelioResponse<T> | Promise<HelioResponse<T>>;
     respondedError?: (e: any) => any | Promise<any>;
   };
+};
+
+export type RetryOptions = {
+  attempts?: number;
+  delay?: number | ((attempt: number, error: unknown) => number);
+  statusCodes?: number[];
+  methods?: HelioRequestConfig['method'][];
+  shouldRetry?: (error: unknown, attempt: number, config: HelioRequestConfig) => boolean | Promise<boolean>;
 };
 
 export type HelioResponse<T = any> = {
@@ -38,9 +49,10 @@ export type HelioResponse<T = any> = {
 export type RequestFn<T> = () => Promise<T>;
 
 export type Scheduler = {
-  run<T>(key: string, fn: () => Promise<T>, ttl?: number): Promise<T>;
-  clearCache?: () => void;
-  getCacheSize?: () => number;
+  run<T>(key: string, fn: () => Promise<T>, ttl?: number, options?: { dedupe?: boolean; cache?: boolean }): Promise<T>;
+  invalidate(keyOrPredicate?: string | ((key: string) => boolean)): void;
+  clearCache(): void;
+  getCacheSize(): number;
 };
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
@@ -103,6 +115,8 @@ export type HelioClient = {
   defineModel<T>(def: ModelDef<T>): ModelDef<T>;
   normalize<T>(model: ModelDef<T>, payload: T | T[]): void;
   watchVersion(cb: () => void): () => void;
+  invalidate(keyOrPredicate?: string | (string|number)[] | ((key: string) => boolean)): void;
+  clearCache(): void;
   get<T=unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
   post<T=unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;
   put<T=unknown>(url: string, opts?: Partial<HelioRequestConfig>): Promise<T>;

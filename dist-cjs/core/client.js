@@ -5,6 +5,7 @@ exports.runQuery = runQuery;
 const normalized_js_1 = require("./cache/normalized.js");
 const scheduler_js_1 = require("./scheduler.js");
 const interceptors_js_1 = require("./interceptors.js");
+const errors_js_1 = require("./errors.js");
 function createClient(opts) {
     const cache = (0, normalized_js_1.createNormalizedCache)();
     const scheduler = (0, scheduler_js_1.createScheduler)();
@@ -25,6 +26,13 @@ function createClient(opts) {
     function defineModel(def) { return def; }
     function normalize(model, payload) { cache.normalize(model, payload); }
     function watchVersion(cb) { return cache.subscribe(cb); }
+    function invalidate(keyOrPredicate) {
+        if (Array.isArray(keyOrPredicate))
+            scheduler.invalidate(queryCacheKey(keyOrPredicate));
+        else
+            scheduler.invalidate(keyOrPredicate);
+    }
+    function clearCache() { scheduler.clearCache(); }
     async function pipeline(config) {
         var _a, _b, _c;
         config = await requestInterceptors.runForRequest(config);
@@ -47,23 +55,28 @@ function createClient(opts) {
         return response;
     }
     async function core(method, url, opts) {
-        var _a;
+        var _a, _b, _c, _d;
         const config = { method, url, ...(opts || {}) };
         const run = async () => {
-            const res = await pipeline(config);
+            const res = await withRetry(config, () => pipeline(config));
             return res.data;
         };
-        if (method === 'GET') {
-            const staleMs = typeof ((_a = config.meta) === null || _a === void 0 ? void 0 : _a.staleTime) === 'number' ? config.meta.staleTime : 30000;
-            return scheduler.run(requestCacheKey(config), run, staleMs);
+        const shouldUseScheduler = (_a = config.dedupe) !== null && _a !== void 0 ? _a : method === 'GET';
+        if (shouldUseScheduler) {
+            const staleMs = typeof ((_b = config.meta) === null || _b === void 0 ? void 0 : _b.staleTime) === 'number' ? config.meta.staleTime : 30000;
+            const key = typeof config.dedupeKey === 'function'
+                ? config.dedupeKey(config)
+                : (_c = config.dedupeKey) !== null && _c !== void 0 ? _c : requestCacheKey(config);
+            const shouldCache = method === 'GET' && staleMs > 0;
+            return scheduler.run(key, run, staleMs, { dedupe: (_d = config.dedupe) !== null && _d !== void 0 ? _d : true, cache: shouldCache });
         }
-        const res = await pipeline(config);
+        const res = await withRetry(config, () => pipeline(config));
         return res.data;
     }
     return {
         adapter: opts.adapter,
         scheduler, cache, draft,
-        defineModel, normalize, watchVersion,
+        defineModel, normalize, watchVersion, invalidate, clearCache,
         get: (u, o) => core('GET', u, o),
         post: (u, o) => core('POST', u, o),
         put: (u, o) => core('PUT', u, o),
@@ -77,7 +90,7 @@ function createClient(opts) {
 }
 async function runQuery(client, key, request, model, staleMs = 30000) {
     // 키를 미리 계산해서 문자열 연산 최소화
-    const cacheKey = key.join(':');
+    const cacheKey = queryCacheKey(key);
     return client.scheduler.run(cacheKey, async () => {
         const res = await request();
         // 정규화가 필요한 경우에만 실행
@@ -85,6 +98,9 @@ async function runQuery(client, key, request, model, staleMs = 30000) {
             client.normalize(model, res);
         return res;
     }, staleMs);
+}
+function queryCacheKey(key) {
+    return key.join(':');
 }
 function requestCacheKey(config) {
     return [
@@ -110,4 +126,56 @@ function stringifyCachePart(value) {
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([key, entry]) => `${key}:${stringifyCachePart(entry)}`)
         .join(',')}}`;
+}
+async function withRetry(config, run) {
+    const retry = normalizeRetry(config.retry);
+    let attempt = 0;
+    while (true) {
+        try {
+            return await run();
+        }
+        catch (error) {
+            if (attempt >= retry.attempts || !(await shouldRetry(error, attempt + 1, config, retry)))
+                throw error;
+            attempt += 1;
+            const delay = resolveRetryDelay(retry, attempt, error);
+            if (delay > 0)
+                await sleep(delay);
+        }
+    }
+}
+function normalizeRetry(retry) {
+    var _a;
+    const defaults = {
+        attempts: 0,
+        delay: 100,
+        statusCodes: [408, 425, 429, 500, 502, 503, 504],
+        methods: ['GET', 'PUT', 'DELETE']
+    };
+    if (retry === undefined)
+        return defaults;
+    if (typeof retry === 'number')
+        return { ...defaults, attempts: retry };
+    return { ...defaults, ...retry, attempts: (_a = retry.attempts) !== null && _a !== void 0 ? _a : defaults.attempts };
+}
+async function shouldRetry(error, attempt, config, retry) {
+    var _a;
+    if ((_a = config.signal) === null || _a === void 0 ? void 0 : _a.aborted)
+        return false;
+    if (retry.shouldRetry)
+        return retry.shouldRetry(error, attempt, config);
+    if (!retry.methods.includes(config.method))
+        return false;
+    if (error instanceof errors_js_1.FynkError && error.status !== undefined)
+        return retry.statusCodes.includes(error.status);
+    return true;
+}
+function resolveRetryDelay(retry, attempt, error) {
+    var _a;
+    if (typeof retry.delay === 'function')
+        return retry.delay(attempt, error);
+    return ((_a = retry.delay) !== null && _a !== void 0 ? _a : 0) * Math.max(1, attempt);
+}
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }

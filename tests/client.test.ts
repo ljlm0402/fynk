@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient } from '../src/index.js';
+import { createClient, FynkError } from '../src/index.js';
 import type { Adapter, HelioRequestConfig, HelioResponse } from '../src/index.js';
 
 function createAdapter(send: Adapter['send']): Adapter {
@@ -73,6 +73,90 @@ test('createClient keeps distinct params in GET dedupe keys', async () => {
     { params: { page: 1 } },
     { params: { page: 2 } }
   ]);
+});
+
+test('createClient can disable GET deduplication', async () => {
+  let count = 0;
+  const client = createClient({
+    adapter: createAdapter(async (config) => {
+      count += 1;
+      const current = count;
+      await new Promise(resolve => setTimeout(resolve, 10));
+      return {
+        status: 200,
+        ok: true,
+        statusText: 'OK',
+        headers: {},
+        data: { count: current },
+        config
+      };
+    })
+  });
+
+  const results = await Promise.all([
+    client.get('/users/1', { dedupe: false }),
+    client.get('/users/1', { dedupe: false })
+  ]);
+
+  assert.equal(count, 2);
+  assert.deepEqual(results, [{ count: 1 }, { count: 2 }]);
+});
+
+test('createClient retries retryable request failures', async () => {
+  let count = 0;
+  const client = createClient({
+    adapter: createAdapter(async (config) => {
+      count += 1;
+      if (count < 3) {
+        throw new FynkError('Request failed with status 503', {
+          config,
+          response: {
+            status: 503,
+            ok: false,
+            statusText: 'Service Unavailable',
+            headers: {},
+            data: { error: 'try again' },
+            config
+          }
+        });
+      }
+      return {
+        status: 200,
+        ok: true,
+        statusText: 'OK',
+        headers: {},
+        data: { ok: true },
+        config
+      };
+    })
+  });
+
+  const result = await client.get('/flaky', { retry: { attempts: 2, delay: 0 } });
+
+  assert.equal(count, 3);
+  assert.deepEqual(result, { ok: true });
+});
+
+test('createClient invalidates scheduler cache entries', async () => {
+  let count = 0;
+  const client = createClient({
+    adapter: createAdapter(async (config) => {
+      count += 1;
+      return {
+        status: 200,
+        ok: true,
+        statusText: 'OK',
+        headers: {},
+        data: { count },
+        config
+      };
+    })
+  });
+
+  assert.deepEqual(await client.get('/users/1'), { count: 1 });
+  assert.deepEqual(await client.get('/users/1'), { count: 1 });
+  client.invalidate(key => key.includes('/users/1'));
+  assert.deepEqual(await client.get('/users/1'), { count: 2 });
 });
 
 test('draft rollback restores optimistic cache changes', () => {

@@ -2,8 +2,9 @@
 import { createNormalizedCache } from './cache/normalized.js';
 import { createScheduler } from './scheduler.js';
 import { InterceptorManager } from './interceptors.js';
+import { FynkError } from './errors.js';
 import type {
-  Adapter, CacheSnapshot, DraftApi, HelioClient, HelioRequestConfig, HelioResponse, ModelDef, RequestFn
+  Adapter, CacheSnapshot, DraftApi, HelioClient, HelioRequestConfig, HelioResponse, ModelDef, RequestFn, RetryOptions
 } from './types.js';
 
 export function createClient(opts: { adapter: Adapter }) : HelioClient {
@@ -28,6 +29,11 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
   function defineModel<T>(def: ModelDef<T>): ModelDef<T> { return def; }
   function normalize<T>(model: ModelDef<T>, payload: T | T[]) { cache.normalize(model, payload); }
   function watchVersion(cb: () => void) { return cache.subscribe(cb); }
+  function invalidate(keyOrPredicate?: string | (string|number)[] | ((key: string) => boolean)) {
+    if (Array.isArray(keyOrPredicate)) scheduler.invalidate(queryCacheKey(keyOrPredicate));
+    else scheduler.invalidate(keyOrPredicate);
+  }
+  function clearCache() { scheduler.clearCache(); }
 
   async function pipeline<T>(config: HelioRequestConfig): Promise<HelioResponse<T>> {
     config = await requestInterceptors.runForRequest(config);
@@ -50,23 +56,28 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
   async function core<T>(method: HelioRequestConfig['method'], url: string, opts?: Partial<HelioRequestConfig>) {
     const config = { method, url, ...(opts || {}) };
     const run = async () => {
-      const res = await pipeline<T>(config);
+      const res = await withRetry(config, () => pipeline<T>(config));
       return res.data;
     };
 
-    if (method === 'GET') {
+    const shouldUseScheduler = config.dedupe ?? method === 'GET';
+    if (shouldUseScheduler) {
       const staleMs = typeof config.meta?.staleTime === 'number' ? config.meta.staleTime : 30_000;
-      return scheduler.run(requestCacheKey(config), run, staleMs);
+      const key = typeof config.dedupeKey === 'function'
+        ? config.dedupeKey(config)
+        : config.dedupeKey ?? requestCacheKey(config);
+      const shouldCache = method === 'GET' && staleMs > 0;
+      return scheduler.run(key, run, staleMs, { dedupe: config.dedupe ?? true, cache: shouldCache });
     }
 
-    const res = await pipeline<T>(config);
+    const res = await withRetry(config, () => pipeline<T>(config));
     return res.data;
   }
 
   return {
     adapter: opts.adapter,
     scheduler, cache, draft,
-    defineModel, normalize, watchVersion,
+    defineModel, normalize, watchVersion, invalidate, clearCache,
     get: (u, o) => core('GET', u, o),
     post: (u, o) => core('POST', u, o),
     put: (u, o) => core('PUT', u, o),
@@ -81,7 +92,7 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
 
 export async function runQuery<T>(client: HelioClient, key: (string|number)[], request: RequestFn<T>, model?: ModelDef<any>, staleMs = 30_000) {
   // 키를 미리 계산해서 문자열 연산 최소화
-  const cacheKey = key.join(':');
+  const cacheKey = queryCacheKey(key);
   
   return client.scheduler.run(cacheKey, async () => {
     const res = await request();
@@ -89,6 +100,10 @@ export async function runQuery<T>(client: HelioClient, key: (string|number)[], r
     if (model) client.normalize(model as any, res as any);
     return res;
   }, staleMs);
+}
+
+function queryCacheKey(key: (string|number)[]) {
+  return key.join(':');
 }
 
 function requestCacheKey(config: HelioRequestConfig): string {
@@ -113,4 +128,58 @@ function stringifyCachePart(value: unknown): string {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, entry]) => `${key}:${stringifyCachePart(entry)}`)
     .join(',')}}`;
+}
+
+async function withRetry<T>(
+  config: HelioRequestConfig,
+  run: () => Promise<HelioResponse<T>>
+): Promise<HelioResponse<T>> {
+  const retry = normalizeRetry(config.retry);
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await run();
+    } catch (error) {
+      if (attempt >= retry.attempts || !(await shouldRetry(error, attempt + 1, config, retry))) throw error;
+      attempt += 1;
+      const delay = resolveRetryDelay(retry, attempt, error);
+      if (delay > 0) await sleep(delay);
+    }
+  }
+}
+
+function normalizeRetry(retry: HelioRequestConfig['retry']): Required<Pick<RetryOptions, 'attempts' | 'statusCodes' | 'methods'>> & RetryOptions {
+  const defaults = {
+    attempts: 0,
+    delay: 100,
+    statusCodes: [408, 425, 429, 500, 502, 503, 504],
+    methods: ['GET', 'PUT', 'DELETE'] as HelioRequestConfig['method'][]
+  };
+
+  if (retry === undefined) return defaults;
+  if (typeof retry === 'number') return { ...defaults, attempts: retry };
+  return { ...defaults, ...retry, attempts: retry.attempts ?? defaults.attempts };
+}
+
+async function shouldRetry(
+  error: unknown,
+  attempt: number,
+  config: HelioRequestConfig,
+  retry: ReturnType<typeof normalizeRetry>
+): Promise<boolean> {
+  if (config.signal?.aborted) return false;
+  if (retry.shouldRetry) return retry.shouldRetry(error, attempt, config);
+  if (!retry.methods.includes(config.method)) return false;
+  if (error instanceof FynkError && error.status !== undefined) return retry.statusCodes.includes(error.status);
+  return true;
+}
+
+function resolveRetryDelay(retry: ReturnType<typeof normalizeRetry>, attempt: number, error: unknown): number {
+  if (typeof retry.delay === 'function') return retry.delay(attempt, error);
+  return (retry.delay ?? 0) * Math.max(1, attempt);
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
