@@ -7,13 +7,18 @@ function useMutation(client, params) {
     const mutate = async (vars) => {
         var _a, _b, _c;
         setPending(true);
+        const didOptimistic = Boolean(params.optimistic);
         try {
             (_a = params.optimistic) === null || _a === void 0 ? void 0 : _a.call(params, client.draft, vars);
             const res = await params.request(vars);
+            if (didOptimistic)
+                client.draft.commit();
             (_b = params.onSuccess) === null || _b === void 0 ? void 0 : _b.call(params, res, client.draft);
             return res;
         }
         catch (e) {
+            if (didOptimistic)
+                client.draft.rollback();
             (_c = params.onError) === null || _c === void 0 ? void 0 : _c.call(params, e, client.draft);
             throw e;
         }

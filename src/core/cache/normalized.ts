@@ -1,5 +1,5 @@
 
-import type { EntityId, ModelDef, NormalizedCache } from '../types';
+import type { CacheSnapshot, EntityId, ModelDef, NormalizedCache } from '../types.js';
 
 export function createNormalizedCache(): NormalizedCache {
   const tables = new Map<string, Map<EntityId, any>>();
@@ -23,7 +23,15 @@ export function createNormalizedCache(): NormalizedCache {
     for (const e of arr) t.set(model.id(e), e);
     bump();
   }
+  function snapshot(): CacheSnapshot {
+    return new Map([...tables].map(([key, table]) => [key, new Map(table)]));
+  }
+  function restore(snapshot: CacheSnapshot) {
+    tables.clear();
+    for (const [key, table] of snapshot) tables.set(key, new Map(table));
+    bump();
+  }
   function subscribe(fn: () => void) { listeners.add(fn); return () => listeners.delete(fn); }
 
-  return { upsert, patch, get, normalize, version, subscribe };
+  return { upsert, patch, get, normalize, snapshot, restore, version, subscribe };
 }

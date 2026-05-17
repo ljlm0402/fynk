@@ -1,8 +1,8 @@
 
 // @ts-ignore
 import { ref, onUnmounted } from 'vue';
-import type { HelioClient, ModelDef, RequestFn } from '../core/types';
-import { runQuery } from '../core/client';
+import type { HelioClient, ModelDef, RequestFn } from '../core/types.js';
+import { runQuery } from '../core/client.js';
 
 export function useQuery<T>(client: HelioClient, params: {
   key: (string|number)[];
@@ -15,17 +15,25 @@ export function useQuery<T>(client: HelioClient, params: {
   const pending = ref(true);
   const error = ref<any>(null);
   const stop = client.watchVersion(() => { /* optional reselect */ });
+  let disposed = false;
 
   async function exec(force = false) {
     pending.value = true; error.value = null;
     try {
       const res = await runQuery(client, key, request, model, force ? 0 : staleTime);
-      data.value = res;
-    } catch (e) { error.value = e; }
-    finally { pending.value = false; }
+      if (!disposed) data.value = res;
+    } catch (e) {
+      if (!disposed) error.value = e;
+    }
+    finally {
+      if (!disposed) pending.value = false;
+    }
   }
   exec(false);
-  onUnmounted(() => stop?.());
+  onUnmounted(() => {
+    disposed = true;
+    stop?.();
+  });
 
   return { data, pending, error, refetch: () => exec(true) };
 }

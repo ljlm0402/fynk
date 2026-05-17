@@ -1,10 +1,10 @@
 
-import { createNormalizedCache } from './cache/normalized';
-import { createScheduler } from './scheduler';
-import { InterceptorManager } from './interceptors';
+import { createNormalizedCache } from './cache/normalized.js';
+import { createScheduler } from './scheduler.js';
+import { InterceptorManager } from './interceptors.js';
 import type {
-  Adapter, DraftApi, HelioClient, HelioRequestConfig, HelioResponse, ModelDef, RequestFn
-} from './types';
+  Adapter, CacheSnapshot, DraftApi, HelioClient, HelioRequestConfig, HelioResponse, ModelDef, RequestFn
+} from './types.js';
 
 export function createClient(opts: { adapter: Adapter }) : HelioClient {
   const cache = createNormalizedCache();
@@ -12,12 +12,17 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
 
   const requestInterceptors = new InterceptorManager<HelioRequestConfig>();
   const responseInterceptors = new InterceptorManager<HelioResponse>();
+  let draftSnapshot: CacheSnapshot | null = null;
 
   const draft: DraftApi = {
-    insert: (m, e) => cache.upsert(m, e),
-    upsert: (m, e) => cache.upsert(m, e),
-    patch: (m, id, p) => cache.patch(m, id, p),
-    rollback: () => { cache.version.value++; }
+    insert: (m, e) => { draftSnapshot ??= cache.snapshot(); cache.upsert(m, e); },
+    upsert: (m, e) => { draftSnapshot ??= cache.snapshot(); cache.upsert(m, e); },
+    patch: (m, id, p) => { draftSnapshot ??= cache.snapshot(); cache.patch(m, id, p); },
+    commit: () => { draftSnapshot = null; },
+    rollback: () => {
+      if (draftSnapshot) cache.restore(draftSnapshot);
+      draftSnapshot = null;
+    }
   };
 
   function defineModel<T>(def: ModelDef<T>): ModelDef<T> { return def; }
@@ -43,7 +48,18 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
   }
 
   async function core<T>(method: HelioRequestConfig['method'], url: string, opts?: Partial<HelioRequestConfig>) {
-    const res = await pipeline<T>({ method, url, ...(opts || {}) });
+    const config = { method, url, ...(opts || {}) };
+    const run = async () => {
+      const res = await pipeline<T>(config);
+      return res.data;
+    };
+
+    if (method === 'GET') {
+      const staleMs = typeof config.meta?.staleTime === 'number' ? config.meta.staleTime : 30_000;
+      return scheduler.run(requestCacheKey(config), run, staleMs);
+    }
+
+    const res = await pipeline<T>(config);
     return res.data;
   }
 
@@ -57,8 +73,8 @@ export function createClient(opts: { adapter: Adapter }) : HelioClient {
     patch: (u, o) => core('PATCH', u, o),
     delete: (u, o) => core('DELETE', u, o),
     interceptors: {
-      request: { use: (...args:any[]) => requestInterceptors.use(...args), eject: (id:number)=>requestInterceptors.eject(id) },
-      response:{ use: (...args:any[]) => responseInterceptors.use(...args), eject: (id:number)=>responseInterceptors.eject(id) }
+      request: { use: requestInterceptors.use.bind(requestInterceptors), eject: (id:number)=>requestInterceptors.eject(id) },
+      response:{ use: responseInterceptors.use.bind(responseInterceptors), eject: (id:number)=>responseInterceptors.eject(id) }
     }
   };
 }
@@ -73,4 +89,28 @@ export async function runQuery<T>(client: HelioClient, key: (string|number)[], r
     if (model) client.normalize(model as any, res as any);
     return res;
   }, staleMs);
+}
+
+function requestCacheKey(config: HelioRequestConfig): string {
+  return [
+    config.method,
+    config.baseURL || '',
+    config.url,
+    stringifyCachePart(config.params),
+    stringifyCachePart(config.headers),
+    stringifyCachePart(config.body)
+  ].join(':');
+}
+
+function stringifyCachePart(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  if (value instanceof URLSearchParams) return value.toString();
+  if (typeof value !== 'object') return String(value);
+  if (Array.isArray(value)) return `[${value.map(stringifyCachePart).join(',')}]`;
+
+  return `{${Object.entries(value as Record<string, unknown>)
+    .filter(([, entry]) => entry !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, entry]) => `${key}:${stringifyCachePart(entry)}`)
+    .join(',')}}`;
 }

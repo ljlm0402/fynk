@@ -1,5 +1,5 @@
 
-import type { Scheduler } from './types';
+import type { Scheduler } from './types.js';
 
 interface CacheEntry<T> {
   data: T;

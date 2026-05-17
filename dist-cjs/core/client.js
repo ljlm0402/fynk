@@ -2,19 +2,25 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createClient = createClient;
 exports.runQuery = runQuery;
-const normalized_1 = require("./cache/normalized");
-const scheduler_1 = require("./scheduler");
-const interceptors_1 = require("./interceptors");
+const normalized_js_1 = require("./cache/normalized.js");
+const scheduler_js_1 = require("./scheduler.js");
+const interceptors_js_1 = require("./interceptors.js");
 function createClient(opts) {
-    const cache = (0, normalized_1.createNormalizedCache)();
-    const scheduler = (0, scheduler_1.createScheduler)();
-    const requestInterceptors = new interceptors_1.InterceptorManager();
-    const responseInterceptors = new interceptors_1.InterceptorManager();
+    const cache = (0, normalized_js_1.createNormalizedCache)();
+    const scheduler = (0, scheduler_js_1.createScheduler)();
+    const requestInterceptors = new interceptors_js_1.InterceptorManager();
+    const responseInterceptors = new interceptors_js_1.InterceptorManager();
+    let draftSnapshot = null;
     const draft = {
-        insert: (m, e) => cache.upsert(m, e),
-        upsert: (m, e) => cache.upsert(m, e),
-        patch: (m, id, p) => cache.patch(m, id, p),
-        rollback: () => { cache.version.value++; }
+        insert: (m, e) => { draftSnapshot !== null && draftSnapshot !== void 0 ? draftSnapshot : (draftSnapshot = cache.snapshot()); cache.upsert(m, e); },
+        upsert: (m, e) => { draftSnapshot !== null && draftSnapshot !== void 0 ? draftSnapshot : (draftSnapshot = cache.snapshot()); cache.upsert(m, e); },
+        patch: (m, id, p) => { draftSnapshot !== null && draftSnapshot !== void 0 ? draftSnapshot : (draftSnapshot = cache.snapshot()); cache.patch(m, id, p); },
+        commit: () => { draftSnapshot = null; },
+        rollback: () => {
+            if (draftSnapshot)
+                cache.restore(draftSnapshot);
+            draftSnapshot = null;
+        }
     };
     function defineModel(def) { return def; }
     function normalize(model, payload) { cache.normalize(model, payload); }
@@ -41,7 +47,17 @@ function createClient(opts) {
         return response;
     }
     async function core(method, url, opts) {
-        const res = await pipeline({ method, url, ...(opts || {}) });
+        var _a;
+        const config = { method, url, ...(opts || {}) };
+        const run = async () => {
+            const res = await pipeline(config);
+            return res.data;
+        };
+        if (method === 'GET') {
+            const staleMs = typeof ((_a = config.meta) === null || _a === void 0 ? void 0 : _a.staleTime) === 'number' ? config.meta.staleTime : 30000;
+            return scheduler.run(requestCacheKey(config), run, staleMs);
+        }
+        const res = await pipeline(config);
         return res.data;
     }
     return {
@@ -54,8 +70,8 @@ function createClient(opts) {
         patch: (u, o) => core('PATCH', u, o),
         delete: (u, o) => core('DELETE', u, o),
         interceptors: {
-            request: { use: (...args) => requestInterceptors.use(...args), eject: (id) => requestInterceptors.eject(id) },
-            response: { use: (...args) => responseInterceptors.use(...args), eject: (id) => responseInterceptors.eject(id) }
+            request: { use: requestInterceptors.use.bind(requestInterceptors), eject: (id) => requestInterceptors.eject(id) },
+            response: { use: responseInterceptors.use.bind(responseInterceptors), eject: (id) => responseInterceptors.eject(id) }
         }
     };
 }
@@ -69,4 +85,29 @@ async function runQuery(client, key, request, model, staleMs = 30000) {
             client.normalize(model, res);
         return res;
     }, staleMs);
+}
+function requestCacheKey(config) {
+    return [
+        config.method,
+        config.baseURL || '',
+        config.url,
+        stringifyCachePart(config.params),
+        stringifyCachePart(config.headers),
+        stringifyCachePart(config.body)
+    ].join(':');
+}
+function stringifyCachePart(value) {
+    if (value === undefined || value === null)
+        return '';
+    if (value instanceof URLSearchParams)
+        return value.toString();
+    if (typeof value !== 'object')
+        return String(value);
+    if (Array.isArray(value))
+        return `[${value.map(stringifyCachePart).join(',')}]`;
+    return `{${Object.entries(value)
+        .filter(([, entry]) => entry !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => `${key}:${stringifyCachePart(entry)}`)
+        .join(',')}}`;
 }

@@ -1,2 +1,2 @@
-export * from './useQuery';
-export * from './useMutation';
+export * from './useQuery.js';
+export * from './useMutation.js';

@@ -1,5 +1,5 @@
 
-import type { InterceptorHandler } from './types';
+import type { InterceptorHandler } from './types.js';
 
 export class InterceptorManager<V> {
   private handlers: Array<InterceptorHandler<V> | null> = [];

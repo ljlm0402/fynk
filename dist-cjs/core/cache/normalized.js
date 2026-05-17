@@ -26,6 +26,15 @@ function createNormalizedCache() {
             t.set(model.id(e), e);
         bump();
     }
+    function snapshot() {
+        return new Map([...tables].map(([key, table]) => [key, new Map(table)]));
+    }
+    function restore(snapshot) {
+        tables.clear();
+        for (const [key, table] of snapshot)
+            tables.set(key, new Map(table));
+        bump();
+    }
     function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
-    return { upsert, patch, get, normalize, version, subscribe };
+    return { upsert, patch, get, normalize, snapshot, restore, version, subscribe };
 }
