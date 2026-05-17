@@ -81,6 +81,7 @@ pnpm add fynk
 - [React integration](docs/react.md)
 - [Vue integration](docs/vue.md)
 - [Benchmarks](docs/benchmarks.md)
+- [Migrating to 2.0](docs/migration-v2.md)
 - [Changelog](CHANGELOG.md)
 
 ### Basic Setup

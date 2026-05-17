@@ -81,6 +81,7 @@ pnpm add fynk
 - [React 통합](docs/react.md)
 - [Vue 통합](docs/vue.md)
 - [벤치마크](docs/benchmarks.md)
+- [2.0 마이그레이션](docs/migration-v2.md)
 - [변경 로그](CHANGELOG.md)
 
 ### 기본 설정

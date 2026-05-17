@@ -1,6 +1,6 @@
 {
   "name": "fynk",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Fynk — reactive HTTP client with normalized cache, dedup, optimistic updates, and pluggable interceptors for React & Vue.",
   "type": "module",
   "main": "./dist-cjs/index.js",
